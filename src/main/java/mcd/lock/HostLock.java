@@ -62,6 +62,7 @@ public final class HostLock {
     private ObjectId observedHead;
     private Instant observedSince;
     private Instant lastPushStart;
+    private int mainPushes;
 
     public HostLock(Git git, String node, InstantSource clock, Duration ttl, Duration margin, CredentialsProvider credentials) {
         this.git = git;
@@ -177,6 +178,11 @@ public final class HostLock {
     }
 
     /** 마지막으로 성공한 push를 시작한 뒤 ttl - margin이 지나면, 다른 노드가 이미 락을 가져갔을 수 있다. */
+    /** 이 객체가 지금까지 성공시킨 main push 횟수. GitHub 사용량을 기록하는 데 쓴다. */
+    public int mainPushes() {
+        return mainPushes;
+    }
+
     public boolean shouldStop() {
         return lastPushStart == null || !clock.instant().isBefore(lastPushStart.plus(ttl).minus(margin));
     }
@@ -260,6 +266,7 @@ public final class HostLock {
             }
             if (targetRef.equals(MAIN)) {
                 lastPushStart = start;
+                mainPushes++;
             }
             return PushOutcome.OK;
         } catch (GitAPIException e) {

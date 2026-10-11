@@ -39,8 +39,29 @@ public final class Bot implements AutoCloseable {
                 .redirectErrorStream(true)
                 .start();
         Bot bot = new Bot(p);
-        bot.await("SPAWNED");
+        try {
+            bot.await("SPAWNED");
+        } catch (TimeoutException | IllegalStateException e) {
+            bot.close();
+            throw e;
+        }
         return bot;
+    }
+
+    /**
+     * mcd 중계로 접속한다. 호스트가 막 기동하는 중이면(새 폴더의 첫 기동은 25초를 넘는다) 중계가 연결을 닫으므로,
+     * 실제 플레이어처럼 다시 접속해본다.
+     */
+    public static Bot joinViaRelay(String username, int relayPort) throws Exception {
+        Exception last = null;
+        for (int attempt = 0; attempt < 4; attempt++) {
+            try {
+                return join(username, relayPort);
+            } catch (Exception e) {
+                last = e;
+            }
+        }
+        throw last;
     }
 
     /** 인벤토리를 "아이템:개수" 목록(정렬됨)을 쉼표로 이은 문자열로 돌려준다. */

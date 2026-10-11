@@ -36,7 +36,7 @@ class McdCrashTest {
 
         try (McdNode a = McdNode.play("A", remote, dirA, 25631, 300)) {
             a.await(0, "[mcd] 준비됐다", Duration.ofMinutes(1));
-            try (Bot alice = Bot.join("alice", 25631)) {
+            try (Bot alice = Bot.joinViaRelay("alice", 25631)) {
                 assertTrue(a.printed("[mcd] 이 PC가 호스트가 됐다(epoch 1)"));
                 // 스냅샷(TTL 300초 = 5분 주기) 전에 준 아이템이라 원격에는 아직 없다.
                 a.sendAndAwait("give alice minecraft:diamond 7", "Gave 7");
@@ -52,7 +52,7 @@ class McdCrashTest {
 
         try (McdNode a2 = McdNode.play("A", remote, dirA, 25631, 300)) {
             a2.await(0, "[mcd] 준비됐다", Duration.ofMinutes(1));
-            try (Bot alice = Bot.join("alice", 25631)) {
+            try (Bot alice = Bot.joinViaRelay("alice", 25631)) {
                 assertTrue(a2.printed("[mcd] 이 PC가 호스트가 됐다(epoch 2)"), "크래시 전 자기 락을 다시 잡아야 한다");
                 assertEquals("diamond:7", alice.awaitInventory("diamond:7"), "Paper가 종료하며 저장한 플레이 기록이 이어져야 한다");
                 alice.quit();

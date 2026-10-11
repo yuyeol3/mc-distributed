@@ -6,6 +6,7 @@ import mcd.server.PaperServer;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -13,6 +14,7 @@ import java.time.InstantSource;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * 락을 잡은 뒤 이 PC에서 Paper를 돌리는 한 번의 호스트 기간. 자기 스레드에서 heartbeat, 주기 스냅샷, 펜싱,
@@ -170,6 +172,7 @@ final class HostSession {
             PushOutcome outcome = lock.release();
             if (outcome == PushOutcome.OK) {
                 log.accept("월드를 올리고 락을 반납했다.");
+                logUsage();
                 return;
             }
             if (outcome == PushOutcome.REJECTED) {
@@ -179,6 +182,17 @@ final class HostSession {
             Thread.sleep(5000);
         }
         log.accept("월드를 올리지 못했다. 다음에 mcd play를 실행하면 다시 올린다.");
+    }
+
+    /** GitHub 사용량을 수치로 보기 위해 호스트 기간이 끝날 때 push 횟수와 로컬 저장소 크기를 남긴다. */
+    private void logUsage() {
+        long bytes;
+        try (Stream<Path> files = Files.walk(dir.resolve(".git"))) {
+            bytes = files.filter(Files::isRegularFile).mapToLong(p -> p.toFile().length()).sum();
+        } catch (IOException e) {
+            bytes = -1;
+        }
+        log.accept("이번 호스트 기간: push " + lock.mainPushes() + "회, 로컬 저장소 " + bytes / (1024 * 1024) + "MB");
     }
 
     private boolean stopped() {

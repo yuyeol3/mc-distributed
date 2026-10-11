@@ -57,7 +57,7 @@ class P0ScenarioTest {
         // 1. A가 접속하면 A가 호스트가 되고, 건축한 뒤 나가면 빈 서버가 스스로 내려가며 월드를 올린다.
         try (McdNode a = McdNode.play("A", remote, dirA, RELAY_A, TTL_SECONDS)) {
             a.await(0, READY, Duration.ofMinutes(1));
-            try (Bot alice = join("alice", RELAY_A)) {
+            try (Bot alice = Bot.joinViaRelay("alice", RELAY_A)) {
                 assertTrue(a.printed(BECAME_HOST));
                 a.send("difficulty peaceful");
                 a.sendAndAwait("give alice minecraft:diamond 5", "Gave 5");
@@ -73,7 +73,7 @@ class P0ScenarioTest {
         // 2. B에서 접속하면 B가 호스트가 되고 A의 건축물과 인벤토리가 그대로 있다.
         McdNode b = McdNode.play("B", remote, dirB, RELAY_B, TTL_SECONDS);
         b.await(0, READY, Duration.ofMinutes(1));
-        Bot alice = join("alice", RELAY_B);
+        Bot alice = Bot.joinViaRelay("alice", RELAY_B);
         b.await(0, BECAME_HOST + "(epoch 2)", Duration.ofSeconds(5));
         assertEquals("diamond:5", alice.awaitInventory("diamond:5"));
         b.sendAndAwait("execute at alice if block ~ ~5 ~ minecraft:gold_block", "Test passed");
@@ -81,7 +81,7 @@ class P0ScenarioTest {
         // 3. B가 호스트일 때 A의 중계로 접속하면 A는 서버를 띄우지 않고 B로 이어준다.
         McdNode a = McdNode.play("A", remote, dirA, RELAY_A, TTL_SECONDS);
         a.await(0, "[mcd] 지금 호스트는 B이다", Duration.ofMinutes(1));
-        Bot bob = join("bob", RELAY_A);
+        Bot bob = Bot.joinViaRelay("bob", RELAY_A);
         assertFalse(a.printed(BECAME_HOST));
         String list = b.sendAndAwait("list", "players online");
         assertTrue(list.contains("alice") && list.contains("bob"), list);
@@ -93,7 +93,7 @@ class P0ScenarioTest {
         bob.close();
         b.killHard();
         Thread.sleep(Duration.ofSeconds(TTL_SECONDS + 10));
-        try (Bot alice2 = join("alice", RELAY_A)) {
+        try (Bot alice2 = Bot.joinViaRelay("alice", RELAY_A)) {
             a.await(0, BECAME_HOST + "(epoch 3)", Duration.ofSeconds(5));
             assertTrue(alice2.awaitInventory("diamond:5").contains("diamond:5"), "마지막 스냅샷까지의 인벤토리는 남아야 한다");
             try (McdNode b2 = McdNode.play("B", remote, dirB, RELAY_B, TTL_SECONDS)) {
@@ -115,7 +115,7 @@ class P0ScenarioTest {
              McdNode b3 = McdNode.play("B", remote, dirB, RELAY_B, TTL_SECONDS)) {
             a3.await(0, READY, Duration.ofMinutes(1));
             b3.await(0, READY, Duration.ofMinutes(1));
-            Bot[] bots = joinConcurrently(() -> join("alice", RELAY_A), () -> join("bob", RELAY_B));
+            Bot[] bots = joinConcurrently(() -> Bot.joinViaRelay("alice", RELAY_A), () -> Bot.joinViaRelay("bob", RELAY_B));
             try (Bot alice3 = bots[0]; Bot bob3 = bots[1]) {
                 assertTrue(a3.printed(BECAME_HOST) ^ b3.printed(BECAME_HOST), "호스트는 정확히 하나여야 한다");
                 McdNode host = a3.printed(BECAME_HOST) ? a3 : b3;
@@ -129,19 +129,6 @@ class P0ScenarioTest {
                 host.await(m, RELEASED, Duration.ofMinutes(2));
             }
         }
-    }
-
-    /** 호스트가 막 기동하는 중이면 중계가 연결을 닫으므로(클라이언트 제한 시간 때문), 다시 접속해본다. */
-    private static Bot join(String name, int relayPort) throws Exception {
-        Exception last = null;
-        for (int attempt = 0; attempt < 4; attempt++) {
-            try {
-                return Bot.join(name, relayPort);
-            } catch (Exception e) {
-                last = e;
-            }
-        }
-        throw last;
     }
 
     private static Bot[] joinConcurrently(Callable<Bot> first, Callable<Bot> second) throws Exception {

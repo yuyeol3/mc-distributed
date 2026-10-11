@@ -42,7 +42,7 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 - ~~jpackage로 Java 25 런타임을 포함한 배포판~~ 완료: `./gradlew packageZip` → 실행 폴더 zip(65MB, java.exe 포함 런타임). 패키지만으로 init, play, Paper 기동, 반납까지 확인. 설치 파일(.exe/.msi)은 WiX Toolset 설치가 필요해서 보류(사용자 결정)
 - ~~Swing 최소 화면~~ 완료: 접속 안내, 상태 줄, 로그(Paper 콘솔 포함), Paper 명령 입력, 종료. 창을 닫으면 저장 후 반납
 - ~~첫 실행 마법사~~ 완료: 이름, GitHub 토큰, 새 월드(private repo 생성 + 초기 파일) 또는 친구의 월드 참가, collaborator 초대 안내, EULA 동의. 배포판의 `mcd.exe`는 GUI, `mcd-cli.exe`는 CLI
-- GitHub 위험 대응: 월드 저장용 계정 분리 안내, 세션당 push 횟수·전송량·repo 크기 기록
+- ~~GitHub 위험 대응~~ 완료: 마법사에 월드 저장용 계정 분리 안내, 호스트 기간이 끝날 때 push 횟수와 로컬 저장소 크기를 로그로 남김(전송량은 JGit에서 바로 얻기 어려워 제외)
 - 이력 정리 전략(결정): E1′에서 gc 후 이력 비용이 최신 월드 크기와 거의 같다고 확인했다. 원격(GitHub)은 서버가 repack하므로 당장 조치하지 않는다. 로컬은 압축된 loose 객체가 쌓이므로 반납 뒤 JGit gc를 돌린다(성능 단계). 그래도 repo가 권장치(10GB)에 가까워지면, force push는 락의 전제(CAS)를 깨므로 쓰지 않고, 락을 잡은 호스트가 최신 스냅샷만 담은 새 repo를 만들고 옛 repo의 락을 "이사함(새 URL)" 상태로 바꿔 노드들이 따라가게 한다. 구현은 필요해질 때 한다.
 
 ### 9. E5 + M2 완료 검증: VM으로 "친구 PC" 대신하기
