@@ -1,5 +1,6 @@
 package mcd.net;
 
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 
 import java.io.DataInputStream;
@@ -19,7 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class RelayTest {
 
-    @Test
+    /** 반복하는 이유: Windows에서 가상 스레드로 중계하면 가끔 멈췄다(40회 중 3~4회). 한 번으로는 잡히지 않는다. */
+    @RepeatedTest(20)
     void relaysBytesBothWaysToCurrentTarget() throws Exception {
         try (EchoServer echo = new EchoServer(); Relay relay = Relay.start(0, echo::address)) {
             byte[] payload = new byte[1 << 20];

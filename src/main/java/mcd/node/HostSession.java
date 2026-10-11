@@ -28,6 +28,7 @@ final class HostSession {
     private final Path dir;
     private final Path jar;
     private final int paperPort;
+    private final int handoffPort;
     private final String node;
     private final Timing timing;
     private final InstantSource clock;
@@ -38,12 +39,13 @@ final class HostSession {
     private final CountDownLatch ended = new CountDownLatch(1);
     private volatile PaperServer paper;
 
-    HostSession(HostLock lock, Path dir, Path jar, int paperPort, String node, Timing timing, InstantSource clock,
-                Consumer<String> log, PrintStream console) {
+    HostSession(HostLock lock, Path dir, Path jar, int paperPort, int handoffPort, String node, Timing timing,
+                InstantSource clock, Consumer<String> log, PrintStream console) {
         this.lock = lock;
         this.dir = dir;
         this.jar = jar;
         this.paperPort = paperPort;
+        this.handoffPort = handoffPort;
         this.node = node;
         this.timing = timing;
         this.clock = clock;
@@ -161,9 +163,36 @@ final class HostSession {
             lock.releaseWithoutWorld();
             return false;
         }
+        if (stopped() && paper.isAlive() && paper.isReady() && paper.onlinePlayers() > 0 && handOver()) {
+            return false;
+        }
         if (paper.isAlive()) {
             paper.stop(Duration.ofMinutes(2));
         }
+        return true;
+    }
+
+    /**
+     * 다른 사람이 접속해 있는데 호스트가 나가면 서버를 넘긴다. 마지막 스냅샷과 함께 락을 반납하고 곧바로 모두를
+     * transfer로 각자 PC의 mcd 중계(localhost:handoffPort)로 보낸다. 중계들은 비어 있는 락을 두고 겨루고(하나만
+     * 이긴다), 진 쪽 중계는 이긴 쪽 Paper가 열릴 때까지 연결을 다시 시도한다. 기존 서버에서 바로 빠지므로 읽기
+     * 전용 구간이 필요 없다. 반납에 실패하면 false를 돌려주고 평소처럼 종료한다.
+     */
+    private boolean handOver() throws Exception {
+        log.accept("다른 사람이 접속해 있어서 서버를 넘긴다.");
+        paper.command("say 호스트가 나가서 서버를 옮깁니다. 잠시 뒤 자동으로 다시 접속됩니다.");
+        paper.pauseSavingAndFlush();
+        if (lock.release() != PushOutcome.OK) {
+            log.accept("락을 반납하지 못해서 서버를 넘기지 못했다.");
+            paper.resumeSaving();
+            return false;
+        }
+        paper.command("transfer localhost " + handoffPort + " @a");
+        Thread.sleep(2000);
+        paper.stop(Duration.ofMinutes(2));
+        lock.discardLocalChanges();
+        log.accept("월드를 올리고 서버를 넘겼다.");
+        logUsage();
         return true;
     }
 

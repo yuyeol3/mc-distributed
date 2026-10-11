@@ -31,6 +31,7 @@ public final class Main {
                   --address <호스트:포트>: 다른 사람이 이 PC의 Paper에 접속할 주소(기본 localhost:<port>)
                   --ttl-seconds <초>: 호스트가 응답 없을 때 이어받기까지의 시간(기본 600). 테스트용.
                   --cache <폴더>: Paper jar를 받아둘 곳(기본 ~/.mcd/cache).
+                  --handoff-port <포트>: 호스트를 넘길 때 플레이어를 보낼 중계 포트(기본 --listen). 테스트용.
             GitHub 토큰은 환경 변수 MCD_GITHUB_TOKEN으로 넘긴다.
             """;
 
@@ -71,7 +72,8 @@ public final class Main {
                         credentials(),
                         Timing.fromTtl(opts.containsKey("ttl-seconds")
                                 ? Duration.ofSeconds(Long.parseLong(opts.get("ttl-seconds")))
-                                : Timing.DEFAULT_TTL)),
+                                : Timing.DEFAULT_TTL),
+                        Integer.parseInt(opts.getOrDefault("handoff-port", opts.getOrDefault("listen", "25565")))),
                         opts.containsKey("accept-eula")).run();
             }
             default -> {

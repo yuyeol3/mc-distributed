@@ -40,8 +40,12 @@ public final class Node implements AutoCloseable {
     private static final Duration ROUTE_WAIT = Duration.ofSeconds(25);
 
     /** 노드 하나를 띄우는 데 필요한 값. CLI와 GUI가 같은 것을 채운다. */
+    /**
+     * handoffPort는 호스트를 넘길 때 플레이어를 보낼 각자 PC의 중계 포트다. 모두 같은 포트(기본 25565)를 쓴다고 본다.
+     * 한 PC에서 노드 여러 개를 흉내 내는 테스트에서만 다른 값을 쓴다.
+     */
     public record Config(String remote, Path dir, String nodeName, int listenPort, int paperPort, String address,
-                         Path cacheDir, CredentialsProvider credentials, Timing timing) {}
+                         Path cacheDir, CredentialsProvider credentials, Timing timing, int handoffPort) {}
 
     private final Git git;
     private final HostLock lock;
@@ -49,6 +53,7 @@ public final class Node implements AutoCloseable {
     private final Path jar;
     private final int listenPort;
     private final int paperPort;
+    private final int handoffPort;
     private final String node;
     private final Timing timing;
     private final InstantSource clock;
@@ -74,6 +79,7 @@ public final class Node implements AutoCloseable {
         this.jar = jar;
         this.listenPort = config.listenPort();
         this.paperPort = config.paperPort();
+        this.handoffPort = config.handoffPort();
         this.node = config.nodeName();
         this.address = config.address();
         this.network = network;
@@ -170,7 +176,7 @@ public final class Node implements AutoCloseable {
                 return parse(acquisition.lock().address());
             }
             log.accept("이 PC가 호스트가 됐다(epoch " + acquisition.lock().epoch() + "). Paper를 시작한다.");
-            session = new HostSession(lock, dir, jar, paperPort, node, timing, clock, log, console);
+            session = new HostSession(lock, dir, jar, paperPort, handoffPort, node, timing, clock, log, console);
             session.start();
             return awaitLocalPaper();
         } catch (org.eclipse.jgit.api.errors.GitAPIException e) {

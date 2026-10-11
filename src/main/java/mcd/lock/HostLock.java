@@ -178,6 +178,16 @@ public final class HostLock {
     }
 
     /** 마지막으로 성공한 push를 시작한 뒤 ttl - margin이 지나면, 다른 노드가 이미 락을 가져갔을 수 있다. */
+    /**
+     * 마지막 커밋 이후의 작업 트리 변경을 버린다. 호스트를 넘긴 뒤 기존 서버가 종료하며 쓴 파일(플레이어가 나가며
+     * 저장된 데이터 등)은 이미 넘긴 스냅샷보다 뒤의 것이라 공유하지 않는다. 남겨 두면 다음 실행 때 recovery
+     * 브랜치가 쓸데없이 생긴다.
+     */
+    public void discardLocalChanges() throws GitAPIException {
+        git.reset().setMode(ResetType.HARD).setRef("HEAD").call();
+        git.clean().setCleanDirectories(true).call();
+    }
+
     /** 이 객체가 지금까지 성공시킨 main push 횟수. GitHub 사용량을 기록하는 데 쓴다. */
     public int mainPushes() {
         return mainPushes;

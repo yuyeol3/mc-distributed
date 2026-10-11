@@ -22,6 +22,8 @@ public final class Relay implements AutoCloseable {
         InetSocketAddress route() throws IOException, InterruptedException;
     }
 
+    private static final long CONNECT_RETRY_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos(25);
+
     private final ServerSocket server;
     private final Router router;
     private final Proxy remoteProxy;
@@ -41,7 +43,9 @@ public final class Relay implements AutoCloseable {
     public static Relay start(int port, Router router, Proxy remoteProxy) throws IOException {
         ServerSocket server = new ServerSocket(port, 50, InetAddress.getLoopbackAddress());
         Relay relay = new Relay(server, router, remoteProxy);
-        Thread.ofVirtual().name("relay-accept").start(relay::acceptLoop);
+        // 연결 수는 플레이어 수 정도라 플랫폼 스레드로 충분하다. Windows에서 가상 스레드로 소켓을 중계하면 가끔
+        // 읽을 데이터가 있는데도 깨어나지 않아 연결이 멈췄다(RelayTest 40회 반복 중 3~4회, 스레드 덤프로 확인).
+        Thread.ofPlatform().daemon().name("relay-accept").start(relay::acceptLoop);
         return relay;
     }
 
@@ -58,7 +62,7 @@ public final class Relay implements AutoCloseable {
         while (!server.isClosed()) {
             try {
                 Socket client = server.accept();
-                Thread.ofVirtual().start(() -> handle(client));
+                Thread.ofPlatform().daemon().name("relay-conn").start(() -> handle(client));
             } catch (IOException e) {
                 // 닫히면 accept가 예외를 던지고 루프가 끝난다.
             }
@@ -68,17 +72,35 @@ public final class Relay implements AutoCloseable {
     private void handle(Socket client) {
         try (client) {
             InetSocketAddress target = router.route();
-            boolean local = target.getAddress() != null && target.getAddress().isLoopbackAddress();
-            try (Socket upstream = local ? new Socket() : new Socket(remoteProxy)) {
-                upstream.connect(target, 10_000);
+            try (Socket upstream = connect(target)) {
                 upstream.setTcpNoDelay(true);
                 client.setTcpNoDelay(true);
-                Thread up = Thread.ofVirtual().start(() -> pipe(client, upstream));
+                Thread up = Thread.ofPlatform().daemon().name("relay-up").start(() -> pipe(client, upstream));
                 pipe(upstream, client);
                 up.join();
             }
         } catch (IOException | InterruptedException e) {
             // 목적지가 없거나 연결이 끊긴 경우. 클라이언트에는 연결 끊김으로 보인다.
+        }
+    }
+
+    /**
+     * 목적지에 연결한다. 호스트가 막 바뀐 직후에는 새 호스트의 Paper가 아직 기동 중이라 연결이 거절될 수 있으므로,
+     * 클라이언트의 읽기 제한(약 30초)보다 짧은 시간 동안 다시 시도한다.
+     */
+    private Socket connect(InetSocketAddress target) throws IOException, InterruptedException {
+        boolean local = target.getAddress() != null && target.getAddress().isLoopbackAddress();
+        long deadline = System.nanoTime() + CONNECT_RETRY_NANOS;
+        while (true) {
+            Socket upstream = local ? new Socket() : new Socket(remoteProxy);
+            try {
+                upstream.connect(target, 10_000);
+                return upstream;
+            } catch (IOException e) {
+                upstream.close();
+                if (System.nanoTime() > deadline) throw e;
+                Thread.sleep(500);
+            }
         }
     }
 

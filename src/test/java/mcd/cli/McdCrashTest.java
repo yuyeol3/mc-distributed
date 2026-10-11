@@ -59,7 +59,7 @@ class McdCrashTest {
             }
             int mark = a2.mark();
             a2.send("stop");
-            a2.await(mark, "[mcd] 월드를 올리고 락을 반납했다.", Duration.ofMinutes(2));
+            a2.await(mark, "[mcd] 월드를 올리고", Duration.ofMinutes(2));
         }
     }
 }

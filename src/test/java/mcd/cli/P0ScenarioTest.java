@@ -40,6 +40,8 @@ class P0ScenarioTest {
     private static final String READY = "[mcd] 준비됐다";
     private static final String BECAME_HOST = "[mcd] 이 PC가 호스트가 됐다";
     private static final String RELEASED = "[mcd] 월드를 올리고 락을 반납했다.";
+    /** stop 직전까지 플레이어가 남아 있으면 반납 대신 넘기기가 될 수 있다. 어느 쪽이든 월드를 올리고 끝난다. */
+    private static final String UPLOADED = "[mcd] 월드를 올리고";
 
     @TempDir
     Path tmp;
@@ -107,7 +109,7 @@ class P0ScenarioTest {
         }
         int mark = a.mark();
         a.send("stop");
-        a.await(mark, RELEASED, Duration.ofMinutes(2));
+        a.await(mark, UPLOADED, Duration.ofMinutes(2));
         assertTrue(a.waitForExit(Duration.ofSeconds(30)));
 
         // 4. 두 사람이 각자 자기 중계로 동시에 접속해도 서버는 하나만 뜨고 둘 다 같은 서버에 들어간다.
@@ -126,7 +128,7 @@ class P0ScenarioTest {
                 int m = host.mark();
                 a3.send("stop");
                 b3.send("stop");
-                host.await(m, RELEASED, Duration.ofMinutes(2));
+                host.await(m, UPLOADED, Duration.ofMinutes(2));
             }
         }
     }

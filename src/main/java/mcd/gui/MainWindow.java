@@ -88,7 +88,8 @@ final class MainWindow extends JFrame {
             try {
                 Node.Config config = new Node.Config(settings.remote(), settings.worldDir(), settings.nodeName(),
                         LISTEN_PORT, PAPER_PORT, settings.address(), Path.of(System.getProperty("user.home"), ".mcd", "cache"),
-                        new UsernamePasswordCredentialsProvider("x-access-token", settings.token()), Timing.fromTtl(Timing.DEFAULT_TTL));
+                        new UsernamePasswordCredentialsProvider("x-access-token", settings.token()), Timing.fromTtl(Timing.DEFAULT_TTL),
+                        LISTEN_PORT);
                 Node opened = Node.open(config, true, this::log, new PrintStream(new LineSink(), true, StandardCharsets.UTF_8));
                 opened.start();
                 node = opened;
