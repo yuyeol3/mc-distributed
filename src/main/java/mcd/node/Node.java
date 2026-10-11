@@ -5,10 +5,17 @@ import mcd.lock.HostLock.Acquisition;
 import mcd.lock.HostLock.Observation;
 import mcd.lock.LockState;
 import mcd.net.Relay;
+import mcd.server.PaperDistribution;
+import mcd.world.WorldRepository;
+import mcd.world.WorldTemplate;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.transport.CredentialsProvider;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.InstantSource;
@@ -28,6 +35,11 @@ public final class Node implements AutoCloseable {
     /** 마인크래프트 클라이언트의 읽기 제한(약 30초)보다 짧게 기다린다. 넘으면 연결을 닫고 다시 접속하게 한다. */
     private static final Duration ROUTE_WAIT = Duration.ofSeconds(25);
 
+    /** 노드 하나를 띄우는 데 필요한 값. CLI와 GUI가 같은 것을 채운다. */
+    public record Config(String remote, Path dir, String nodeName, int listenPort, int paperPort, String address,
+                         Path cacheDir, CredentialsProvider credentials, Timing timing) {}
+
+    private final Git git;
     private final HostLock lock;
     private final Path dir;
     private final Path jar;
@@ -38,24 +50,55 @@ public final class Node implements AutoCloseable {
     private final Timing timing;
     private final InstantSource clock;
     private final Consumer<String> log;
+    private final PrintStream console;
 
     private final CountDownLatch closed = new CountDownLatch(1);
     private Relay relay;
     private volatile HostSession session;
     private LockState lastAnnounced;
 
-    public Node(HostLock lock, Path dir, Path jar, int listenPort, int paperPort, String node, String address,
-                Timing timing, InstantSource clock, Consumer<String> log) {
+    private Node(Git git, HostLock lock, Config config, Path jar, InstantSource clock, Consumer<String> log, PrintStream console) {
+        this.git = git;
         this.lock = lock;
-        this.dir = dir;
+        this.dir = config.dir();
         this.jar = jar;
-        this.listenPort = listenPort;
-        this.paperPort = paperPort;
-        this.node = node;
-        this.address = address;
-        this.timing = timing;
+        this.listenPort = config.listenPort();
+        this.paperPort = config.paperPort();
+        this.node = config.nodeName();
+        this.address = config.address();
+        this.timing = config.timing();
         this.clock = clock;
         this.log = log;
+        this.console = console;
+    }
+
+    /**
+     * 월드 작업 트리를 열거나 받고, Paper jar를 준비해서 노드를 만든다(아직 시작하지 않음).
+     * log는 mcd의 안내 메시지, console은 호스트일 때 Paper 콘솔 출력이 가는 곳이다.
+     * acceptEula가 참이면 EULA 동의를 기록한다(clone은 빈 폴더에만 되므로 받은 뒤에 쓴다).
+     */
+    public static Node open(Config config, boolean acceptEula, Consumer<String> log, PrintStream console) throws Exception {
+        if (!WorldRepository.exists(config.dir())) {
+            log.accept(config.remote() + "에서 월드를 받는다.");
+        }
+        Git git = WorldRepository.openOrClone(config.dir(), config.remote(), config.credentials());
+        try {
+            if (acceptEula) {
+                WorldTemplate.acceptEula(config.dir());
+            }
+            if (!Files.exists(config.dir().resolve("eula.txt"))) {
+                throw new IllegalStateException("Minecraft EULA(https://aka.ms/MinecraftEULA)에 동의해야 서버를 띄울 수 있다.");
+            }
+            WorldTemplate.checkPaperBuild(config.dir());
+            Path jar = PaperDistribution.ensureDownloaded(config.cacheDir());
+            InstantSource clock = InstantSource.system();
+            Timing t = config.timing();
+            HostLock lock = new HostLock(git, config.nodeName(), clock, t.ttl(), t.margin(), config.credentials());
+            return new Node(git, lock, config, jar, clock, log, console);
+        } catch (Exception e) {
+            git.close();
+            throw e;
+        }
     }
 
     public void start() throws IOException {
@@ -68,11 +111,14 @@ public final class Node implements AutoCloseable {
     @Override
     public void close() throws IOException, InterruptedException {
         closed.countDown();
-        relay.close();
+        if (relay != null) relay.close();
         HostSession current = session;
         if (current != null && current.isRunning()) {
             current.requestStop();
             current.awaitEnd(Duration.ofMinutes(3));
+        }
+        synchronized (this) {
+            git.close();
         }
     }
 
@@ -100,7 +146,7 @@ public final class Node implements AutoCloseable {
                 return parse(acquisition.lock().address());
             }
             log.accept("이 PC가 호스트가 됐다(epoch " + acquisition.lock().epoch() + "). Paper를 시작한다.");
-            session = new HostSession(lock, dir, jar, paperPort, node, timing, clock, log);
+            session = new HostSession(lock, dir, jar, paperPort, node, timing, clock, log, console);
             session.start();
             return awaitLocalPaper();
         } catch (org.eclipse.jgit.api.errors.GitAPIException e) {

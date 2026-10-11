@@ -1,5 +1,6 @@
 package mcd.cli;
 
+import mcd.node.Node;
 import mcd.node.Timing;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
@@ -51,19 +52,19 @@ public final class Main {
             case "init" -> InitCommand.run(Path.of(require(opts, "dir")), require(opts, "remote"), !opts.containsKey("offline"), credentials());
             case "play" -> {
                 int paperPort = Integer.parseInt(opts.getOrDefault("port", "25566"));
-                new PlayCommand(new PlayCommand.Options(
+                new PlayCommand(new Node.Config(
                         require(opts, "remote"),
                         Path.of(require(opts, "dir")),
                         require(opts, "node"),
                         Integer.parseInt(opts.getOrDefault("listen", "25565")),
                         paperPort,
                         opts.getOrDefault("address", "localhost:" + paperPort),
-                        opts.containsKey("accept-eula"),
                         opts.containsKey("cache") ? Path.of(opts.get("cache")) : Path.of(System.getProperty("user.home"), ".mcd", "cache"),
                         credentials(),
                         Timing.fromTtl(opts.containsKey("ttl-seconds")
                                 ? Duration.ofSeconds(Long.parseLong(opts.get("ttl-seconds")))
-                                : Timing.DEFAULT_TTL))).run();
+                                : Timing.DEFAULT_TTL)),
+                        opts.containsKey("accept-eula")).run();
             }
             default -> {
                 System.out.print(USAGE);

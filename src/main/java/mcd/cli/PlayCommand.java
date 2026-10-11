@@ -1,81 +1,44 @@
 package mcd.cli;
 
-import mcd.lock.HostLock;
 import mcd.node.Node;
-import mcd.node.Timing;
-import mcd.server.PaperDistribution;
-import mcd.world.WorldTemplate;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.transport.CredentialsProvider;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.InstantSource;
 import java.util.concurrent.CountDownLatch;
 
 /** `mcd play`: 노드를 띄우고, 콘솔 입력(stop이나 Paper 명령)과 Ctrl+C를 처리한다. */
 final class PlayCommand {
 
-    record Options(String remote, Path dir, String node, int listenPort, int paperPort, String address,
-                   boolean acceptEula, Path cacheDir, CredentialsProvider credentials, Timing timing) {}
-
-    private final Options options;
+    private final Node.Config config;
+    private final boolean acceptEula;
     private final CountDownLatch stopRequested = new CountDownLatch(1);
 
-    PlayCommand(Options options) {
-        this.options = options;
+    PlayCommand(Node.Config config, boolean acceptEula) {
+        this.config = config;
+        this.acceptEula = acceptEula;
     }
 
     void run() throws Exception {
-        try (Git git = openOrClone()) {
-            prepareEula();
-            WorldTemplate.checkPaperBuild(options.dir());
-            Path jar = PaperDistribution.ensureDownloaded(options.cacheDir());
-            InstantSource clock = InstantSource.system();
-            Timing t = options.timing();
-            HostLock lock = new HostLock(git, options.node(), clock, t.ttl(), t.margin(), options.credentials());
-            Node node = new Node(lock, options.dir(), jar, options.listenPort(), options.paperPort(), options.node(),
-                    options.address(), t, clock, PlayCommand::log);
-
-            CountDownLatch finished = new CountDownLatch(1);
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                stopRequested.countDown();
-                try {
-                    finished.await();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }));
-            node.start();
-            Thread.ofVirtual().start(() -> readConsole(node));
+        Node node = Node.open(config, acceptEula, PlayCommand::log, System.out);
+        CountDownLatch finished = new CountDownLatch(1);
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            stopRequested.countDown();
             try {
-                stopRequested.await();
-                log("종료한다.");
-            } finally {
-                node.close();
-                finished.countDown();
+                finished.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
-        }
-    }
-
-    private Git openOrClone() throws Exception {
-        if (Files.exists(options.dir().resolve(".git"))) {
-            return Git.open(options.dir().toFile());
-        }
-        log(options.remote() + "에서 월드를 받는다.");
-        return Git.cloneRepository().setURI(options.remote()).setDirectory(options.dir().toFile())
-                .setCredentialsProvider(options.credentials()).call();
-    }
-
-    private void prepareEula() throws IOException {
-        if (options.acceptEula()) {
-            WorldTemplate.acceptEula(options.dir());
-        } else if (!Files.exists(options.dir().resolve("eula.txt"))) {
-            throw new IllegalStateException("Minecraft EULA(https://aka.ms/MinecraftEULA)에 동의하면 --accept-eula를 붙여 다시 실행한다.");
+        }));
+        node.start();
+        Thread.ofVirtual().start(() -> readConsole(node));
+        try {
+            stopRequested.await();
+            log("종료한다.");
+        } finally {
+            node.close();
+            finished.countDown();
         }
     }
 

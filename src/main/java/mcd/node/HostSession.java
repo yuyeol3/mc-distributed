@@ -5,6 +5,7 @@ import mcd.lock.HostLock.PushOutcome;
 import mcd.server.PaperServer;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -29,12 +30,14 @@ final class HostSession {
     private final Timing timing;
     private final InstantSource clock;
     private final Consumer<String> log;
+    private final PrintStream console;
 
     private final CountDownLatch stopRequested = new CountDownLatch(1);
     private final CountDownLatch ended = new CountDownLatch(1);
     private volatile PaperServer paper;
 
-    HostSession(HostLock lock, Path dir, Path jar, int paperPort, String node, Timing timing, InstantSource clock, Consumer<String> log) {
+    HostSession(HostLock lock, Path dir, Path jar, int paperPort, String node, Timing timing, InstantSource clock,
+                Consumer<String> log, PrintStream console) {
         this.lock = lock;
         this.dir = dir;
         this.jar = jar;
@@ -43,11 +46,12 @@ final class HostSession {
         this.timing = timing;
         this.clock = clock;
         this.log = log;
+        this.console = console;
     }
 
     /** Paper를 띄우고 관리 스레드를 시작한다. 기동을 기다리지 않는다(기다리는 동안에도 heartbeat가 필요하므로). */
     void start() throws IOException {
-        paper = PaperServer.launch(dir, jar, paperPort, System.out);
+        paper = PaperServer.launch(dir, jar, paperPort, console);
         Thread.ofPlatform().name("host-session").start(this::run);
     }
 

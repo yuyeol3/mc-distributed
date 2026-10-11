@@ -86,9 +86,10 @@ val jpackageImage by tasks.registering(Exec::class) {
     executable = jdkHome.get().resolve("bin/jpackage").absolutePath
     args("--type", "app-image", "--name", "mcd",
         "--input", layout.buildDirectory.dir("install/mcd/lib").get().asFile.absolutePath,
-        "--main-jar", "mcd.jar", "--main-class", "mcd.cli.Main",
+        "--main-jar", "mcd.jar", "--main-class", "mcd.gui.App",
         "--runtime-image", packageDir.get().dir("runtime").asFile.absolutePath,
-        "--win-console",
+        // mcd.exe는 GUI, mcd-cli.exe는 콘솔 창이 있는 CLI다.
+        "--add-launcher", "mcd-cli=" + file("src/jpackage/mcd-cli.properties").absolutePath,
         "--dest", packageDir.get().asFile.absolutePath)
 }
 

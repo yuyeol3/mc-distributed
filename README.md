@@ -4,7 +4,10 @@
 
 ## 배포판
 
-`./gradlew packageZip`은 Java 25 런타임을 포함한 실행 폴더를 `build/distributions/mcd-windows.zip`으로 묶는다(압축 해제 후 `mcd/mcd.exe`). 사용자는 Java를 설치할 필요가 없다. 설치 파일(.exe/.msi)은 WiX Toolset이 있어야 만들 수 있어서 아직 없다.
+`./gradlew packageZip`은 Java 25 런타임을 포함한 실행 폴더를 `build/distributions/mcd-windows.zip`으로 묶는다. 사용자는 Java를 설치할 필요가 없다. 설치 파일(.exe/.msi)은 WiX Toolset이 있어야 만들 수 있어서 아직 없다.
+
+- `mcd/mcd.exe`: GUI. 처음 실행하면 설정 마법사(이름, GitHub 토큰, 새 월드 만들기 또는 친구의 월드 참가, EULA 동의)가 뜨고, 그다음 창에서 노드가 돈다. 창을 닫으면 저장하고 락을 반납한 뒤 끝난다. 설정은 `~/.mcd/settings.properties`, 월드는 `~/.mcd/worlds/<repo 이름>`에 둔다.
+- `mcd/mcd-cli.exe`: 아래 CLI와 같다.
 
 ## 사용법 (MVP, CLI)
 
@@ -40,6 +43,8 @@ build/install/mcd/bin/mcd play --remote https://github.com/<계정>/<repo>.git -
 - 실험 결과는 `experiments/`에 있다.
 
 ## 알려진 한계
+
+- GitHub 토큰은 `~/.mcd/settings.properties`에 평문으로 저장된다. OS 자격 증명 저장소 연동은 나중에 한다.
 
 - Paper는 stdin이 닫혀도 계속 돈다. 그래서 Paper JVM에 작은 에이전트(`ParentWatchdog`)를 붙여서, mcd가 죽으면 Paper도 저장하고 종료하게 했다. 다시 실행하면 그동안 아무도 락을 가져가지 않았을 경우 그 플레이 기록이 `main`에 이어진다(`McdCrashTest`). PC 전체가 꺼지면 TTL이 지난 뒤 다른 노드가 이어받는다.
 - 호스트가 바뀌면 플레이어는 새 주소로 직접 다시 접속해야 한다.
