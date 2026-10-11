@@ -78,6 +78,7 @@ val packageDir = layout.buildDirectory.dir("jpackage")
 val jlinkRuntime by tasks.registering(Exec::class) {
     description = "Paper까지 실행할 수 있는 Java 런타임(java.exe 포함)"
     val output = packageDir.map { it.dir("runtime").asFile }
+    inputs.property("jdk", jdkHome.map { it.absolutePath })
     outputs.dir(output)
     doFirst { delete(output) }
     executable = jdkHome.get().resolve("bin/jlink").absolutePath
@@ -99,6 +100,11 @@ val jlinkRuntime by tasks.registering(Exec::class) {
 val jpackageImage by tasks.registering(Exec::class) {
     description = "mcd 실행 폴더(build/jpackage/mcd)"
     dependsOn(tasks.installDist, jlinkRuntime)
+    // 입력을 선언하지 않으면 Gradle이 출력만 보고 최신으로 판단해, jar가 바뀌어도 다시 패키징하지 않는다
+    // (실제로 옛 jar가 든 배포판으로 시험한 적이 있다).
+    inputs.dir(layout.buildDirectory.dir("install/mcd/lib"))
+    inputs.dir(packageDir.map { it.dir("runtime") })
+    inputs.file("src/jpackage/mcd-cli.properties")
     val output = packageDir.map { it.dir("mcd").asFile }
     outputs.dir(output)
     doFirst { delete(output) }
