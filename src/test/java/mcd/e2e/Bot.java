@@ -1,0 +1,76 @@
+package mcd.e2e;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+/** e2e/bot.js(Mineflayer)를 띄워서 offline mode 플레이어 하나를 흉내 낸다. */
+public final class Bot implements AutoCloseable {
+
+    private static final Duration TIMEOUT = Duration.ofSeconds(60);
+
+    private final Process process;
+    private final Writer stdin;
+    private final BlockingQueue<String> lines = new LinkedBlockingQueue<>();
+
+    private Bot(Process process) {
+        this.process = process;
+        this.stdin = process.outputWriter(StandardCharsets.UTF_8);
+        Thread.ofVirtual().start(() -> {
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = r.readLine()) != null) lines.add(line);
+            } catch (IOException ignored) {
+                // 프로세스가 끝나면 스트림이 닫힌다.
+            }
+        });
+    }
+
+    /** 접속해서 스폰될 때까지 기다린다. 작업 디렉터리는 프로젝트 루트라고 가정한다. */
+    public static Bot join(String username, int port) throws IOException, TimeoutException, InterruptedException {
+        Process p = new ProcessBuilder("node", "e2e/bot.js", "localhost", Integer.toString(port), username)
+                .redirectErrorStream(true)
+                .start();
+        Bot bot = new Bot(p);
+        bot.await("SPAWNED");
+        return bot;
+    }
+
+    /** 인벤토리를 "아이템:개수" 목록(정렬됨)을 쉼표로 이은 문자열로 돌려준다. */
+    public String inventory() throws IOException, TimeoutException, InterruptedException {
+        send("inventory");
+        return await("INVENTORY ").substring("INVENTORY ".length()).trim();
+    }
+
+    public void quit() throws IOException, InterruptedException {
+        send("quit");
+        process.waitFor(10, TimeUnit.SECONDS);
+    }
+
+    @Override
+    public void close() {
+        process.destroyForcibly();
+    }
+
+    private void send(String command) throws IOException {
+        stdin.write(command + "\n");
+        stdin.flush();
+    }
+
+    private String await(String prefix) throws TimeoutException, InterruptedException {
+        long deadline = System.nanoTime() + TIMEOUT.toNanos();
+        while (true) {
+            String line = lines.poll(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+            if (line == null) throw new TimeoutException("봇 출력에서 '" + prefix + "'를 찾지 못했다");
+            if (line.startsWith(prefix)) return line;
+            if (line.startsWith("KICKED") || line.startsWith("ERROR")) throw new IllegalStateException("봇: " + line);
+        }
+    }
+}
