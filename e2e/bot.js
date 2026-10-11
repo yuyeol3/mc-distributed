@@ -36,6 +36,8 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     const items = (bot.inventory ? bot.inventory.items() : []).map((i) => `${i.name}:${i.count}`).sort()
     console.log('INVENTORY ' + items.join(','))
   } else if (cmd === 'quit') {
-    bot.quit()
+    // 스폰 전(아직 연결 중)에는 quit이 없을 수 있다. 그때는 그냥 끝낸다.
+    if (typeof bot.quit === 'function') bot.quit()
+    else process.exit(0)
   }
 })

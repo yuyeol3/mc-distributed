@@ -2,6 +2,7 @@ package mcd.gui;
 
 import mcd.config.Settings;
 import mcd.github.GitHubClient;
+import mcd.world.NetworkConfig;
 import mcd.world.WorldRepository;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 
@@ -23,6 +24,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -37,6 +39,8 @@ final class SetupDialog extends JDialog {
     private final JRadioButton joinExisting = new JRadioButton("친구의 월드에 참가");
     private final JTextField newRepoName = new JTextField("mcd-world", 24);
     private final JTextField existingRepo = new JTextField("https://github.com/<친구 계정>/<repo>.git", 24);
+    private final JTextField tailnetKey = new JTextField(24);
+    private final JTextField tailnetControl = new JTextField(24);
     private final JTextField address = new JTextField("localhost:25566", 24);
     private final JCheckBox eula = new JCheckBox("Minecraft EULA(https://aka.ms/MinecraftEULA)에 동의한다");
     private final JButton start = new JButton("시작");
@@ -57,6 +61,10 @@ final class SetupDialog extends JDialog {
         row = addRow(form, row, createNew, newRepoName);
         row = addRow(form, row, joinExisting, existingRepo);
         row = addNote(form, row, "친구의 월드에 참가하려면 친구가 그 repo에 나를 collaborator로 초대해야 한다.");
+        row = addRow(form, row, "tailnet 인증 키", tailnetKey);
+        row = addNote(form, row, "새 월드일 때만. 인터넷 너머의 친구가 접속하려면 필요하다. Tailscale 관리 화면에서 재사용 가능한 키를 한 번 발급해 넣으면 친구들은 아무것도 설치하지 않는다. 비우면 같은 PC/네트워크에서만 접속된다.");
+        row = addRow(form, row, "조정 서버 주소", tailnetControl);
+        row = addNote(form, row, "비우면 Tailscale을 쓴다. Headscale을 직접 운영하면 그 주소를 넣는다.");
         row = addRow(form, row, "내 서버 주소", address);
         row = addNote(form, row, "내 PC가 호스트일 때 다른 사람이 접속할 주소. 네트워크 방식이 정해지기 전까지는 기본값을 둔다.");
         GridBagConstraints c = constraints(0, row);
@@ -101,7 +109,11 @@ final class SetupDialog extends JDialog {
                 if (createNew.isSelected()) {
                     String repoName = newRepoName.getText().trim();
                     remote = github.createPrivateRepo(repoName);
-                    WorldRepository.create(worldDir(remote), remote, true,
+                    String key = tailnetKey.getText().trim();
+                    Optional<NetworkConfig> network = key.isEmpty()
+                            ? Optional.empty()
+                            : Optional.of(new NetworkConfig(tailnetControl.getText().trim(), key));
+                    WorldRepository.create(worldDir(remote), remote, true, network,
                             new UsernamePasswordCredentialsProvider("x-access-token", tokenText));
                     inviteHint = "\n\n친구를 초대하려면 https://github.com/" + login + "/" + repoName
                             + "/settings/access 에서 collaborator로 추가한다.";

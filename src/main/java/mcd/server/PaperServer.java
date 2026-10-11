@@ -35,7 +35,8 @@ public final class PaperServer implements AutoCloseable {
         this.process = process;
         this.echo = echo;
         this.stdin = process.outputWriter(StandardCharsets.UTF_8);
-        Thread.ofVirtual().start(this::readOutput);
+        // 프로세스 출력 읽기는 가상 스레드의 캐리어를 붙잡으므로 플랫폼 스레드로 읽는다.
+        Thread.ofPlatform().daemon().name("paper-output").start(this::readOutput);
     }
 
     /**

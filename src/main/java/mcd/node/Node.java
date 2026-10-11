@@ -5,7 +5,9 @@ import mcd.lock.HostLock.Acquisition;
 import mcd.lock.HostLock.Observation;
 import mcd.lock.LockState;
 import mcd.net.Relay;
+import mcd.net.Tailnet;
 import mcd.server.PaperDistribution;
+import mcd.world.NetworkConfig;
 import mcd.world.WorldRepository;
 import mcd.world.WorldTemplate;
 import org.eclipse.jgit.api.Git;
@@ -15,10 +17,12 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.InstantSource;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -46,18 +50,24 @@ public final class Node implements AutoCloseable {
     private final int listenPort;
     private final int paperPort;
     private final String node;
-    private final String address;
     private final Timing timing;
     private final InstantSource clock;
     private final Consumer<String> log;
     private final PrintStream console;
 
+    private final Optional<NetworkConfig> network;
+    private final Path tailnetState;
+
     private final CountDownLatch closed = new CountDownLatch(1);
+    /** 다른 노드가 이 PC의 Paper에 접속할 주소. tailnet을 쓰면 시작할 때 tailnet IP로 정해진다. */
+    private volatile String address;
+    private Tailnet tailnet;
     private Relay relay;
     private volatile HostSession session;
     private LockState lastAnnounced;
 
-    private Node(Git git, HostLock lock, Config config, Path jar, InstantSource clock, Consumer<String> log, PrintStream console) {
+    private Node(Git git, HostLock lock, Config config, Path jar, Optional<NetworkConfig> network, InstantSource clock,
+                 Consumer<String> log, PrintStream console) {
         this.git = git;
         this.lock = lock;
         this.dir = config.dir();
@@ -66,6 +76,10 @@ public final class Node implements AutoCloseable {
         this.paperPort = config.paperPort();
         this.node = config.nodeName();
         this.address = config.address();
+        this.network = network;
+        // 노드 키가 저장되므로 월드 폴더(git 작업 트리) 밖, 노드와 월드마다 따로 둔다.
+        this.tailnetState = config.cacheDir().toAbsolutePath().resolveSibling("tailnet")
+                .resolve(tailnetName(config.nodeName()) + "-" + Integer.toHexString(config.remote().hashCode()));
         this.timing = config.timing();
         this.clock = clock;
         this.log = log;
@@ -95,15 +109,23 @@ public final class Node implements AutoCloseable {
             InstantSource clock = InstantSource.system();
             Timing t = config.timing();
             HostLock lock = new HostLock(git, config.nodeName(), clock, t.ttl(), t.margin(), config.credentials());
-            return new Node(git, lock, config, jar, clock, log, console);
+            return new Node(git, lock, config, jar, NetworkConfig.read(config.dir()), clock, log, console);
         } catch (Exception e) {
             git.close();
             throw e;
         }
     }
 
-    public void start() throws IOException {
-        relay = Relay.start(listenPort, this::route);
+    public void start() throws Exception {
+        Proxy remote = Proxy.NO_PROXY;
+        if (network.isPresent()) {
+            log.accept("tailnet에 붙는다.");
+            tailnet = Tailnet.join(network.get(), tailnetName(node), tailnetState, paperPort, log);
+            address = tailnet.ip() + ":" + paperPort;
+            remote = tailnet.proxy();
+            log.accept("tailnet 주소는 " + address + "이다.");
+        }
+        relay = Relay.start(listenPort, this::route, remote);
         log.accept("준비됐다. 마인크래프트에서 localhost:" + relay.port() + "로 접속하면 된다.");
         Thread.ofPlatform().name("node-observer").start(this::observeLoop);
     }
@@ -121,6 +143,7 @@ public final class Node implements AutoCloseable {
         synchronized (this) {
             git.close();
         }
+        if (tailnet != null) tailnet.close();
     }
 
     /** 호스트인 동안 사용자 콘솔 입력을 Paper로 넘긴다. 호스트가 아니면 false. */
@@ -193,6 +216,13 @@ public final class Node implements AutoCloseable {
         } else if (current.state() == LockState.State.FREE) {
             log.accept("지금은 호스트가 없다. 접속하면 이 PC가 호스트가 된다.");
         }
+    }
+
+    /** tailnet 이름은 DNS 이름 규칙을 따라야 해서 영문 소문자, 숫자, '-'만 남긴다. */
+    static String tailnetName(String nodeName) {
+        String name = nodeName.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9-]", "-").replaceAll("-+", "-")
+                .replaceAll("^-|-$", "");
+        return "mcd-" + (name.isEmpty() ? Integer.toHexString(nodeName.hashCode()) : name);
     }
 
     private static InetSocketAddress parse(String hostPort) throws IOException {

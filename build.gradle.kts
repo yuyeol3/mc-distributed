@@ -28,6 +28,25 @@ application {
     mainClass = "mcd.cli.Main"
 }
 
+// tailnet 보조 프로그램(Go, tsnet). 배포판에서는 mcd.jar 옆(lib)에 둔다. 빌드에 Go가 필요하다.
+val netHelper by tasks.registering(Exec::class) {
+    description = "mcd-net.exe(tailnet 보조 프로그램) 빌드"
+    workingDir = file("net-helper")
+    inputs.files(fileTree("net-helper") { exclude("build/**") })
+    outputs.file("net-helper/build/mcd-net.exe")
+    environment("GOOS", "windows")
+    environment("GOARCH", "amd64")
+    commandLine("go", "build", "-o", "build/mcd-net.exe", ".")
+}
+
+distributions {
+    main {
+        contents {
+            from(netHelper) { into("lib") }
+        }
+    }
+}
+
 tasks.test {
     useJUnitPlatform {
         excludeTags("paper")

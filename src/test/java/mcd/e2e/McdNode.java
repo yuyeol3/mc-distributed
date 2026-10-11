@@ -24,7 +24,7 @@ public final class McdNode implements AutoCloseable {
         this.name = name;
         this.process = process;
         this.stdin = process.outputWriter(StandardCharsets.UTF_8);
-        Thread.ofVirtual().start(() -> {
+        Thread.ofPlatform().daemon().start(() -> {
             try (BufferedReader r = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = r.readLine()) != null) {
@@ -44,6 +44,7 @@ public final class McdNode implements AutoCloseable {
     public static McdNode play(String name, String remote, Path dir, int listenPort, int ttlSeconds) throws IOException {
         List<String> cmd = List.of(
                 Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "-Dmcd.netHelper=" + Path.of("net-helper/build/mcd-net.exe").toAbsolutePath(),
                 "-cp", System.getProperty("java.class.path"),
                 "mcd.cli.Main", "play",
                 "--remote", remote,

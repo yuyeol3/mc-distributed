@@ -23,7 +23,7 @@ public final class Bot implements AutoCloseable {
     private Bot(Process process) {
         this.process = process;
         this.stdin = process.outputWriter(StandardCharsets.UTF_8);
-        Thread.ofVirtual().start(() -> {
+        Thread.ofPlatform().daemon().start(() -> {
             try (BufferedReader r = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = r.readLine()) != null) lines.add(line);

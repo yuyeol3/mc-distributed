@@ -32,7 +32,8 @@ final class PlayCommand {
             }
         }));
         node.start();
-        Thread.ofVirtual().start(() -> readConsole(node));
+        // stdin 읽기는 가상 스레드의 캐리어를 붙잡으므로 플랫폼 스레드로 읽는다.
+        Thread.ofPlatform().daemon().name("console").start(() -> readConsole(node));
         try {
             stopRequested.await();
             log("종료한다.");

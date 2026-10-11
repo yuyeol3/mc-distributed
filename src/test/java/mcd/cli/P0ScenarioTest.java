@@ -50,7 +50,7 @@ class P0ScenarioTest {
         Path bare = tmp.resolve("remote.git");
         Git.init().setBare(true).setInitialBranch("main").setDirectory(bare.toFile()).call().close();
         String remote = bare.toUri().toString();
-        InitCommand.run(tmp.resolve("init"), remote, false, null);
+        InitCommand.run(tmp.resolve("init"), remote, false, java.util.Optional.empty(), null);
         Path dirA = tmp.resolve("A");
         Path dirB = tmp.resolve("B");
 

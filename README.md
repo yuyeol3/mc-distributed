@@ -24,11 +24,13 @@ build/install/mcd/bin/mcd play --remote https://github.com/<계정>/<repo>.git -
 - GitHub 토큰은 환경 변수 `MCD_GITHUB_TOKEN`으로 넘긴다.
 - **마인크래프트의 서버 주소는 항상 `localhost:25565`다.** 접속하면 mcd가 현재 호스트로 이어주고, 호스트가 없으면 이 PC가 서버가 된다. 아무도 접속하지 않은 채 5분이 지나면 서버는 스스로 월드를 올리고 내려간다.
 - 호스트일 때 콘솔 입력은 Paper 콘솔로 넘어간다. `stop`을 입력하거나 Ctrl+C를 누르면 저장하고 락을 반납한 뒤 끝난다.
-- 다른 PC가 내 Paper에 접속하려면 `--address <내 주소>:25566`을 넘긴다(네트워크 방식은 아직 정하지 않음).
+- **인터넷 너머의 친구와 하려면** 월드를 만들 때 tailnet 인증 키를 넣는다(`init --tailnet-auth-key`, GUI 마법사의 "tailnet 인증 키"). 그러면 모든 노드가 mcd에 내장된 tailnet 클라이언트(tsnet)로 서로 접속한다. 친구는 Tailscale을 설치하거나 로그인하지 않는다. 월드 주인만 Tailscale 관리 화면에서 재사용 가능한 키를 한 번 발급한다(Headscale 같은 다른 조정 서버도 `--tailnet-control-url`로 쓸 수 있다).
+- tailnet 없이 같은 네트워크에서만 쓸 때는 `--address <내 주소>:25566`으로 다른 PC가 접속할 주소를 넘긴다.
 - `--accept-eula`는 [Minecraft EULA](https://aka.ms/MinecraftEULA)에 동의한다는 뜻이다.
 
 ## 동작 방식
 
+- **tailnet**: 월드 repo에 `mcd-network.properties`가 있으면 mcd가 `mcd-net`(Go, tsnet)을 띄워 tailnet에 붙는다. 다른 PC로 나가는 중계 연결은 `mcd-net`의 SOCKS5로, 들어오는 연결은 tailnet의 Paper 포트에서 로컬 Paper로 넘어온다. 락에는 tailnet 주소가 적힌다(실험 E5). 노드 키는 월드 폴더 밖에 둔다.
 - **중계**: mcd는 `localhost:25565`에서 마인크래프트 연결을 받아 현재 호스트의 Paper로 바이트 그대로 넘긴다(`Relay`). 연결마다 락을 확인하고, 호스트가 없으면 락을 잡고 Paper를 띄운 뒤 이어준다. 클라이언트의 읽기 제한 때문에 Paper 기동을 25초까지만 기다리고, 넘으면 연결을 닫는다(다시 접속하면 된다).
 - **락**: 월드 repo의 `main` 안에 `mcd-lock.properties`가 있다. 모든 상태 변경은 원격 `main` 위에 커밋 하나를 쌓고 force 없이 push하는 것이고, 동시에 push하면 하나만 성공한다(실험 E2). 락을 잃은 호스트의 push는 git이 거절한다.
 - **lease**: 호스트는 2분마다 heartbeat를, 10분마다 월드 스냅샷을 push한다. 다른 노드는 같은 `main`을 자기 시계로 10분 동안 관찰하면 호스트가 죽었다고 보고 이어받는다. 호스트는 8분 동안 갱신하지 못하면 스스로 서버를 내린다.
@@ -43,6 +45,9 @@ build/install/mcd/bin/mcd play --remote https://github.com/<계정>/<repo>.git -
 - 실험 결과는 `experiments/`에 있다.
 
 ## 알려진 한계
+
+- tailnet 인증 키는 월드 repo에 들어가므로 collaborator에게 보인다. 권한을 좁힌 키를 쓴다.
+- 새 폴더의 첫 Paper 기동은 25초를 넘을 수 있어서, 그때는 첫 접속이 끊기고 다시 접속해야 한다.
 
 - GitHub 토큰은 `~/.mcd/settings.properties`에 평문으로 저장된다. OS 자격 증명 저장소 연동은 나중에 한다.
 

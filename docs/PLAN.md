@@ -35,21 +35,10 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 | 5. E1′: 커밋 시간 원인 | JGit `add "."`이 바뀌지 않은 파일까지 다시 압축하던 것이 원인. 바뀐 파일만 stage해서 9.7초 → 1초 안팎(검증용 세션으로 확인). 저장 형식 변환은 불필요 | `experiments/E1-prime-results.md` |
 | 6. E6: 중계와 transfer | 바이트 중계를 거쳐도 플레이 정상, `transfer localhost <중계 포트>`로 새 호스트로 이동 확인. Mineflayer는 transfer를 처리하지 않아 봇에 직접 구현. online mode 확인은 사용자에게 남김 | `experiments/E6-results.md` |
 | 7. M2-a: 중계와 접속 시 호스트 | `mcd play`는 localhost:25565에 중계를 열고 기다리는 노드가 됨. 연결이 오면 살아 있는 호스트로 넘기거나 이 PC가 호스트가 됨. 빈 서버는 TTL/2(기본 5분) 뒤 스스로 반납. P0 시나리오 5개를 중계 방식으로 다시 통과 | `mcd.node`, `P0ScenarioTest` |
+| 8. M2-b: 배포판, GUI, 마법사 | app-image zip(Java 런타임 포함), `mcd.exe`(GUI)와 `mcd-cli.exe`. 첫 실행 마법사(GitHub 토큰, 새 월드/참가, tailnet 키, EULA). 사용량 로그. 설치 파일(.msi)은 WiX 설치가 필요해 보류 | README |
+| 9. E5: 인터넷 너머 연결 | tsnet 내장(`mcd-net`)으로 친구는 설치·로그인 없이 연결. VM(`mcd-friend`, base_machine 복제)과 Headscale로 호스트 ↔ VM 접속 확인. CPU 2개 PC에서 중계가 멈추던 가상 스레드 버그 수정 | `experiments/E5-results.md` |
 
 ## 남은 단계 (이 순서로 진행)
-
-### 8. M2-b: 패키징, GUI, 첫 실행 마법사
-- ~~jpackage로 Java 25 런타임을 포함한 배포판~~ 완료: `./gradlew packageZip` → 실행 폴더 zip(65MB, java.exe 포함 런타임). 패키지만으로 init, play, Paper 기동, 반납까지 확인. 설치 파일(.exe/.msi)은 WiX Toolset 설치가 필요해서 보류(사용자 결정)
-- ~~Swing 최소 화면~~ 완료: 접속 안내, 상태 줄, 로그(Paper 콘솔 포함), Paper 명령 입력, 종료. 창을 닫으면 저장 후 반납
-- ~~첫 실행 마법사~~ 완료: 이름, GitHub 토큰, 새 월드(private repo 생성 + 초기 파일) 또는 친구의 월드 참가, collaborator 초대 안내, EULA 동의. 배포판의 `mcd.exe`는 GUI, `mcd-cli.exe`는 CLI
-- ~~GitHub 위험 대응~~ 완료: 마법사에 월드 저장용 계정 분리 안내, 호스트 기간이 끝날 때 push 횟수와 로컬 저장소 크기를 로그로 남김(전송량은 JGit에서 바로 얻기 어려워 제외)
-- 이력 정리 전략(결정): E1′에서 gc 후 이력 비용이 최신 월드 크기와 거의 같다고 확인했다. 원격(GitHub)은 서버가 repack하므로 당장 조치하지 않는다. 로컬은 압축된 loose 객체가 쌓이므로 반납 뒤 JGit gc를 돌린다(성능 단계). 그래도 repo가 권장치(10GB)에 가까워지면, force push는 락의 전제(CAS)를 깨므로 쓰지 않고, 락을 잡은 호스트가 최신 스냅샷만 담은 새 repo를 만들고 옛 repo의 락을 "이사함(새 URL)" 상태로 바꿔 노드들이 따라가게 한다. 구현은 필요해질 때 한다.
-
-### 9. E5 + M2 완료 검증: VM으로 "친구 PC" 대신하기
-- VirtualBox 등으로 깨끗한 VM을 만들어 개발 환경 없는 친구 PC 역할을 맡기고, 가능한 만큼 자동화한다.
-- 네트워크 후보(Tailscale, 포트 포워딩 없는 터널)를 설치 단계 수, 연결 성공률, 지연 시간으로 비교하고 하나를 고른다. 중계가 네트워크 방식을 감추므로 바꾸기 쉽다.
-- 완료 기준: VM에서 설치 파일만으로 P0 시나리오 1~3 재현(호스트 PC ↔ VM)
-- 한계: 같은 PC 안의 VM은 실제 원격 친구와 NAT 조건이 다르다. 최종 확인은 실제 친구와 한다.
 
 ### 10. M3: `/transfer`를 이용한 호스트 이관
 1. 기존 호스트: 공지 → 모두 adventure 모드 + `tick freeze`(월드 변경 차단) → 저장, 커밋 → 후임을 지정한 락(`owner=B, epoch+1`)과 월드를 커밋 하나로 push
@@ -74,6 +63,8 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 
 ## 열린 성능 문제 (기능 단계 이후에 다룸)
 
+- 계정 없는 직접 연결(UPnP, git 중개 hole punching)로 DERP 중계를 거치지 않게 하기
+
 - Paper 기동이 25초를 넘으면(첫 기동은 라이브러리를 풀어서 느림) 중계가 연결을 닫아 플레이어가 다시 접속해야 한다. 중계가 로그인 단계에서 "기동 중" 안내를 보내는 방법을 검토한다.
 
 - 로컬 작업 repo에 압축된 loose 객체가 쌓인다(스냅샷 20개에 340MB). 주기적인 로컬 gc가 필요하다.
@@ -82,5 +73,5 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 ## 남은 불확실성
 
 - 중계를 거친 online mode 동작(사용자가 진짜 클라이언트로 한 번 확인)
-- VM 기반 검증이 실제 원격 환경을 얼마나 대신하는지(9단계)
+- VM 기반 검증이 실제 원격 환경을 얼마나 대신하는지: 실제 친구와 한 번 확인해야 한다
 - 이관 중 읽기 전용 구간이 정말 새는 곳 없이 막히는지(10단계)

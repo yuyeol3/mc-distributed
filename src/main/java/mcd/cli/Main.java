@@ -2,6 +2,7 @@ package mcd.cli;
 
 import mcd.node.Node;
 import mcd.node.Timing;
+import mcd.world.NetworkConfig;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 
@@ -9,6 +10,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public final class Main {
@@ -17,8 +19,10 @@ public final class Main {
 
     private static final String USAGE = """
             사용법:
-              mcd init --remote <git URL> --dir <폴더> [--offline]
+              mcd init --remote <git URL> --dir <폴더> [--offline] [--tailnet-auth-key <키> [--tailnet-control-url <주소>]]
                   빈 원격 repo에 새 월드를 만든다. --offline이면 online-mode=false(테스트용).
+                  tailnet 키를 주면 모든 노드가 그 tailnet으로 서로 접속한다(친구는 아무것도 설치하지 않음).
+                  조정 서버를 비우면 Tailscale을 쓴다. Headscale 같은 다른 조정 서버도 쓸 수 있다.
               mcd play --remote <git URL> --dir <폴더> --node <이름> [--accept-eula]
                   월드에 들어갈 준비를 하고 기다린다. 마인크래프트에서 localhost:25565로 접속하면, 호스트가 있으면
                   그쪽으로 이어지고 없으면 이 PC가 서버가 된다. 아무도 없으면 서버는 스스로 내려간다.
@@ -49,7 +53,11 @@ public final class Main {
         }
         Map<String, String> opts = parse(args);
         switch (args[0]) {
-            case "init" -> InitCommand.run(Path.of(require(opts, "dir")), require(opts, "remote"), !opts.containsKey("offline"), credentials());
+            case "init" -> InitCommand.run(Path.of(require(opts, "dir")), require(opts, "remote"), !opts.containsKey("offline"),
+                    opts.containsKey("tailnet-auth-key")
+                            ? Optional.of(new NetworkConfig(opts.getOrDefault("tailnet-control-url", ""), opts.get("tailnet-auth-key")))
+                            : Optional.empty(),
+                    credentials());
             case "play" -> {
                 int paperPort = Integer.parseInt(opts.getOrDefault("port", "25566"));
                 new PlayCommand(new Node.Config(

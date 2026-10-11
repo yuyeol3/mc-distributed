@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -23,16 +24,23 @@ public final class Relay implements AutoCloseable {
 
     private final ServerSocket server;
     private final Router router;
+    private final Proxy remoteProxy;
 
-    private Relay(ServerSocket server, Router router) {
+    private Relay(ServerSocket server, Router router, Proxy remoteProxy) {
         this.server = server;
         this.router = router;
+        this.remoteProxy = remoteProxy;
     }
 
     /** 다른 PC에서 들어오지 못하도록 loopback 주소에만 연다. port가 0이면 빈 포트를 고른다. */
     public static Relay start(int port, Router router) throws IOException {
+        return start(port, router, Proxy.NO_PROXY);
+    }
+
+    /** remoteProxy는 loopback이 아닌 목적지(다른 PC)로 나갈 때 쓴다(tailnet의 SOCKS5). */
+    public static Relay start(int port, Router router, Proxy remoteProxy) throws IOException {
         ServerSocket server = new ServerSocket(port, 50, InetAddress.getLoopbackAddress());
-        Relay relay = new Relay(server, router);
+        Relay relay = new Relay(server, router, remoteProxy);
         Thread.ofVirtual().name("relay-accept").start(relay::acceptLoop);
         return relay;
     }
@@ -60,7 +68,8 @@ public final class Relay implements AutoCloseable {
     private void handle(Socket client) {
         try (client) {
             InetSocketAddress target = router.route();
-            try (Socket upstream = new Socket()) {
+            boolean local = target.getAddress() != null && target.getAddress().isLoopbackAddress();
+            try (Socket upstream = local ? new Socket() : new Socket(remoteProxy)) {
                 upstream.connect(target, 10_000);
                 upstream.setTcpNoDelay(true);
                 client.setTcpNoDelay(true);
