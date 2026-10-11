@@ -6,6 +6,7 @@ import mcd.lock.HostLock.Observation;
 import mcd.lock.LockState;
 import mcd.net.Relay;
 import mcd.net.Tailnet;
+import mcd.server.PaperBuild;
 import mcd.server.PaperDistribution;
 import mcd.world.NetworkConfig;
 import mcd.world.WorldRepository;
@@ -104,14 +105,16 @@ public final class Node implements AutoCloseable {
         Git git = WorldRepository.openOrClone(config.dir(), config.remote(), config.credentials());
         try {
             // 엉뚱한 git repo(예: 경로가 비어 현재 폴더)에 파일을 쓰지 않도록, 월드 repo인지부터 확인한다.
-            WorldTemplate.checkPaperBuild(config.dir());
+            PaperBuild build = WorldTemplate.paperBuild(config.dir());
+            PaperDistribution.checkSupported(build, log);
             if (acceptEula) {
                 WorldTemplate.acceptEula(config.dir());
             }
             if (!Files.exists(config.dir().resolve("eula.txt"))) {
                 throw new IllegalStateException("Minecraft EULA(https://aka.ms/MinecraftEULA)에 동의해야 서버를 띄울 수 있다.");
             }
-            Path jar = PaperDistribution.ensureDownloaded(config.cacheDir());
+            log.accept("이 월드는 마인크래프트 " + build.version() + "용이다(Paper " + build + ").");
+            Path jar = PaperDistribution.official().ensureDownloaded(config.cacheDir(), build);
             InstantSource clock = InstantSource.system();
             Timing t = config.timing();
             HostLock lock = new HostLock(git, config.nodeName(), clock, t.ttl(), t.margin(), config.credentials());

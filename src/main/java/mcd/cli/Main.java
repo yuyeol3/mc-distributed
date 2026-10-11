@@ -2,6 +2,7 @@ package mcd.cli;
 
 import mcd.node.Node;
 import mcd.node.Timing;
+import mcd.server.PaperDistribution;
 import mcd.world.NetworkConfig;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
@@ -32,6 +33,9 @@ public final class Main {
                   --ttl-seconds <초>: 호스트가 응답 없을 때 이어받기까지의 시간(기본 600). 테스트용.
                   --cache <폴더>: Paper jar를 받아둘 곳(기본 ~/.mcd/cache).
                   --handoff-port <포트>: 호스트를 넘길 때 플레이어를 보낼 중계 포트(기본 --listen). 테스트용.
+              mcd upgrade-paper --remote <git URL> --dir <폴더> --node <이름> --paper <버전 또는 버전-빌드>
+                  월드가 쓰는 Paper(= 마인크래프트 버전)를 올린다. 버전만 주면 그 버전의 최신 안정 빌드를 쓴다.
+                  호스트가 있는 동안은 바꿀 수 없고, 옛 버전으로는 되돌릴 수 없다. 모두 클라이언트를 그 버전으로 맞춰야 한다.
             GitHub 토큰은 환경 변수 MCD_GITHUB_TOKEN으로 넘긴다.
             """;
 
@@ -76,6 +80,15 @@ public final class Main {
                         Integer.parseInt(opts.getOrDefault("handoff-port", opts.getOrDefault("listen", "25565")))),
                         opts.containsKey("accept-eula")).run();
             }
+            case "upgrade-paper" -> UpgradeCommand.run(
+                    Path.of(require(opts, "dir")),
+                    require(opts, "remote"),
+                    require(opts, "node"),
+                    require(opts, "paper"),
+                    opts.containsKey("cache") ? Path.of(opts.get("cache")) : Path.of(System.getProperty("user.home"), ".mcd", "cache"),
+                    credentials(),
+                    PaperDistribution.official(),
+                    message -> System.out.println("[mcd] " + message));
             default -> {
                 System.out.print(USAGE);
                 System.exit(2);

@@ -1,6 +1,7 @@
 package mcd.world;
 
 import mcd.lock.LockState;
+import mcd.server.PaperBuild;
 import mcd.server.PaperDistribution;
 
 import java.io.IOException;
@@ -10,7 +11,7 @@ import java.nio.file.Path;
 /** 새 월드 repo에 들어갈 초기 파일. 작업 트리가 곧 Paper 서버 폴더다. */
 public final class WorldTemplate {
 
-    /** 이 월드를 만든 Paper 빌드. 다른 빌드로 열면 월드가 업그레이드되어 다른 호스트가 열 수 없게 될 수 있다. */
+    /** 이 월드가 쓰는 Paper 빌드("버전-빌드"). 앱이 아니라 월드가 정한다(업그레이드는 mcd upgrade-paper). */
     public static final String PAPER_BUILD_FILE = "mcd-paper-build.txt";
 
     /** 노드마다 다르거나 Paper가 다시 만드는 파일은 버전 관리하지 않는다. 목록은 Paper 26.1.2 실행 결과로 정했다. */
@@ -44,20 +45,24 @@ public final class WorldTemplate {
                 ticks-per:
                   autosave: 0
                 """);
-        Files.writeString(dir.resolve(PAPER_BUILD_FILE), PaperDistribution.BUILD + "\n");
+        writePaperBuild(dir, PaperDistribution.DEFAULT_BUILD);
         LockState.initial().write(dir);
     }
 
-    /** 월드가 이 프로그램의 Paper 빌드로 만들어졌는지 확인한다. */
-    public static void checkPaperBuild(Path dir) throws IOException {
+    /**
+     * 이 월드가 쓰는 Paper 빌드. 모든 호스트가 이 빌드로 서버를 띄운다. 파일이 없으면 mcd 월드가 아니므로 거부한다
+     * (엉뚱한 git repo에 무엇이든 쓰기 전에 확인하는 용도도 겸한다).
+     */
+    public static PaperBuild paperBuild(Path dir) throws IOException {
         Path file = dir.resolve(PAPER_BUILD_FILE);
         if (!Files.exists(file)) {
             throw new IllegalStateException(dir.toAbsolutePath() + "는 mcd 월드가 아니다(" + PAPER_BUILD_FILE + " 없음)");
         }
-        String recorded = Files.readString(file).trim();
-        if (!recorded.equals(PaperDistribution.BUILD)) {
-            throw new IllegalStateException("이 월드는 Paper " + recorded + "용인데 이 프로그램은 " + PaperDistribution.BUILD + "를 쓴다");
-        }
+        return PaperBuild.parse(Files.readString(file));
+    }
+
+    public static void writePaperBuild(Path dir, PaperBuild build) throws IOException {
+        Files.writeString(dir.resolve(PAPER_BUILD_FILE), build + "\n");
     }
 
     /** Paper를 띄우려면 각 PC에서 EULA에 동의해야 한다. eula.txt는 버전 관리하지 않는다. */

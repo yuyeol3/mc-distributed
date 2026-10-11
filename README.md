@@ -17,7 +17,7 @@
 | 무엇 | 누가 | 비고 |
 |---|---|---|
 | Windows 10/11 PC | 모두 | 배포판은 Java 런타임을 포함하므로 Java를 설치하지 않아도 된다 |
-| 마인크래프트 Java Edition **26.1.x** | 모두 | 서버가 Paper 26.1.2로 고정돼 있어서 26.1, 26.1.1, 26.1.2 클라이언트만 접속된다(26.2는 안 됨). 정품 계정이 필요하다 |
+| 마인크래프트 Java Edition (월드의 버전) | 모두 | 새 월드는 26.1.2로 만들어진다(26.1, 26.1.1 클라이언트도 접속된다). 월드 주인이 버전을 올리면 모두 그 버전으로 맞춘다. mcd 창에 "이 월드는 마인크래프트 OOO용이다"가 뜬다. 정품 계정이 필요하다 |
 | GitHub 계정과 토큰 | 모두 | 월드를 보관하는 곳이다. **메인 계정과 따로 만든 계정**을 권한다(아래 참고) |
 | Tailscale 계정 | 월드 주인만 | 인터넷 너머의 친구와 할 때만 필요하다. 친구는 필요 없다 |
 
@@ -60,7 +60,8 @@
 |---|---|
 | 첫 접속이 "시간 초과"로 끊김 | 그 PC에서 처음 서버를 띄울 때는 준비가 25초를 넘을 수 있다. 다시 접속하면 된다 |
 | "지금 호스트는 OOO"인데 접속이 안 됨 | 그 사람의 PC가 갑자기 꺼졌을 수 있다. 최대 10분 뒤 자동으로 다른 PC가 이어받으니, 그 뒤에 다시 접속한다 |
-| 접속 화면에서 버전이 맞지 않다고 나옴 | 마인크래프트 버전을 26.1.x로 바꾼다 |
+| 접속 화면에서 버전이 맞지 않다고 나옴 | 마인크래프트 버전을 mcd 창에 뜨는 월드 버전으로 바꾼다 |
+| "Java N 이상이 필요한데" | 월드가 이 mcd보다 새 Paper를 쓴다. mcd를 새 버전으로 바꾼다 |
 | "토큰을 확인하지 못했다" | 토큰이 틀렸거나 `repo` 권한이 없다. 토큰을 다시 만든다 |
 | "원격에 올리지 못했다" (새 월드) | 같은 이름의 repo가 이미 있거나 비어 있지 않다. 다른 이름을 쓴다 |
 | 설정을 처음부터 다시 하고 싶음 | `%USERPROFILE%\.mcd\settings.properties`를 지우고 다시 실행한다 |
@@ -79,6 +80,11 @@ mcd-cli init --remote https://github.com/<계정>/<repo>.git --dir worlds/surviv
 mcd-cli play --remote https://github.com/<계정>/<repo>.git --dir worlds/survival --node <내 이름> --accept-eula
 ```
 
+```sh
+# 월드의 마인크래프트(Paper) 버전 올리기: 모두 나간 상태에서
+mcd-cli upgrade-paper --remote https://github.com/<계정>/<repo>.git --dir worlds/survival --node <내 이름> --paper 26.2
+```
+
 `play` 중 콘솔 입력은 내 PC가 호스트일 때 Paper 콘솔로 넘어간다(예: `op <이름>`, `difficulty hard`). `stop`이나 Ctrl+C를 누르면 저장하고 끝난다.
 
 | 명령 | 옵션 | 설명 |
@@ -95,6 +101,8 @@ mcd-cli play --remote https://github.com/<계정>/<repo>.git --dir worlds/surviv
 | | `--address <호스트:포트>` | tailnet 없이 같은 네트워크에서 쓸 때 다른 PC가 내 Paper에 접속할 주소 |
 | | `--cache <폴더>` | Paper jar를 받아 둘 곳(기본 `~/.mcd/cache`) |
 | | `--ttl-seconds`, `--handoff-port` | 테스트용 |
+| `upgrade-paper` | `--remote`, `--dir`, `--node` | 필수 |
+| | `--paper <버전 또는 버전-빌드>` | 올릴 버전. 버전만 주면(예: `26.2`) 그 버전의 최신 안정 빌드. 호스트가 있는 동안은 안 되고, 옛 버전으로는 되돌릴 수 없다 |
 
 ## 파일 위치
 
@@ -102,7 +110,7 @@ mcd-cli play --remote https://github.com/<계정>/<repo>.git --dir worlds/surviv
 |---|---|
 | `~/.mcd/settings.properties` | GUI 설정(이름, repo 주소, 토큰). 토큰이 평문으로 저장된다 |
 | `~/.mcd/worlds/<repo 이름>/` | 월드의 로컬 사본이자 Paper 서버 폴더(git 작업 트리) |
-| `~/.mcd/cache/` | Paper jar(첫 실행 때 받는다) |
+| `~/.mcd/cache/` | Paper jar(월드가 쓰는 빌드를 처음 쓸 때 받는다)와 검증한 해시(`.sha256`) |
 | `~/.mcd/tailnet/` | tailnet 노드 키. 월드 폴더 밖에 둬서 GitHub에 올라가지 않는다 |
 
 ## 직접 빌드하기
@@ -145,4 +153,4 @@ experiments/ 실험 기록 (E1′ ~ E6)
 
 ## 라이선스
 
-[MIT](LICENSE). 배포판에 함께 들어가는 Java 런타임, JGit, tsnet은 각자의 라이선스를 따르고, Paper는 배포판에 넣지 않고 첫 실행 때 받는다.
+[MIT](LICENSE). 배포판에 함께 들어가는 Java 런타임, JGit, tsnet은 각자의 라이선스를 따르고, Paper는 배포판에 넣지 않고 월드가 정한 빌드를 처음 쓸 때 받는다.

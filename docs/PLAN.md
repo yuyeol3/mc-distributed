@@ -19,7 +19,7 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 | Git | JGit | 사용자가 git을 설치하지 않아도 됨 |
 | 배포 | jpackage로 Java 25 런타임 포함 설치 파일 | Java 설치 불필요, 같은 런타임으로 Paper 실행 |
 | GraalVM native-image | 하지 않음 | Paper가 JVM을 필요로 해서 JRE를 뺄 수 없음 |
-| Paper | 26.1.2-74 고정, 월드 repo에 기록 | 26.1+ 월드는 다운그레이드 불가 |
+| Paper | 월드가 빌드를 정함(새 월드는 26.1.2-74), 앱은 그 빌드를 받아 씀 | 한 월드의 호스트는 같은 빌드여야 함(다운그레이드 불가) |
 | UI | MVP는 CLI, 배포 단계에서 Swing | JDK에 포함, 의존성 없음 |
 | 테스트 플레이어 | Mineflayer 4.39.0 봇(offline mode) | 26.1까지 지원, 자동화 가능 |
 
@@ -38,6 +38,7 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 | 8. M2-b: 배포판, GUI, 마법사 | app-image zip(Java 런타임 포함), `mcd.exe`(GUI)와 `mcd-cli.exe`. 첫 실행 마법사(GitHub 토큰, 새 월드/참가, tailnet 키, EULA). 사용량 로그. 설치 파일(.msi)은 WiX 설치가 필요해 보류 | README |
 | 9. E5: 인터넷 너머 연결 | tsnet 내장(`mcd-net`)으로 친구는 설치·로그인 없이 연결. VM(`mcd-friend`, base_machine 복제)과 Headscale로 호스트 ↔ VM 접속 확인. CPU 2개 PC에서 중계가 멈추던 가상 스레드 버그 수정 | `experiments/E5-results.md` |
 | 10. M3: 호스트 이관 | 다른 사람이 접속해 있는데 호스트가 나가면 마지막 스냅샷과 함께 락을 반납하고 곧바로 `transfer localhost 25565 @a`. 각자의 중계가 빈 락을 겨루고(한 노드만 이김), 진 쪽 중계는 새 Paper가 열릴 때까지 재시도. 기존 서버에서 바로 빠지므로 읽기 전용 구간이 필요 없음. 넘긴 뒤의 잔여 변경은 버려 recovery 브랜치가 생기지 않음. Windows에서 가상 스레드 소켓 중계가 가끔 멈추던 문제를 찾아 중계를 플랫폼 스레드로 바꿈 | `HandoffScenarioTest` |
+| 11. 서버 버전 분리 | Paper 빌드를 앱 코드가 아니라 월드(`mcd-paper-build.txt`)가 정하게 함. Paper API에서 받아 SHA-256 검증 후 버전별 캐시. 지원 범위(1.20.5 이상, Java 요구 버전, 26.1.x 밖은 경고). `mcd upgrade-paper`로 락을 잡고 버전을 올림(다운그레이드와 호스트 중 변경은 거부) | `PaperDistributionTest`, `UpgradeCommandTest` |
 
 ## 남은 단계 (이 순서로 진행)
 
