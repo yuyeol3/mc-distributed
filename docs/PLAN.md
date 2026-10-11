@@ -41,7 +41,7 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 | 11. 서버 버전 분리 | Paper 빌드를 앱 코드가 아니라 월드(`mcd-paper-build.txt`)가 정하게 함. Paper API에서 받아 SHA-256 검증 후 버전별 캐시. 지원 범위(1.20.5 이상, Java 요구 버전, 26.1.x 밖은 경고). `mcd upgrade-paper`로 락을 잡고 버전을 올림(다운그레이드와 호스트 중 변경은 거부) | `PaperDistributionTest`, `UpgradeCommandTest` |
 | 12. 중계 첫머리 처리 | 서버 목록 확인은 호스트를 띄우지 않고 중계가 답하거나 살아 있는 호스트로 넘김. 로그인은 플러그인 질의로 붙잡아 두다가 첫머리를 다시 보내 이어줌. **정품 클라이언트로 35초 첫 기동을 끊김 없이 통과, 중계를 거친 정품 인증도 확인**. v0.1.0 릴리스 | `RelayTest`, `FirstJoinHoldTest` |
 | 13. 자동 업데이트 | 앱 버전(manifest), 배포 zip의 `.sha256`. GitHub 릴리스에서 더 새 버전을 찾아 받고 검증한 뒤, PowerShell 스크립트가 설치 폴더의 mcd가 모두 끝나면 robocopy로 바꾸고 다시 켬. 배포판 0.2.0 → 가짜 릴리스 9.9.9로 실제 교체 확인 | `UpdaterTest`, `mcd.update` |
-| 14. 새 월드 기본값 26.2 | 26.1.2 지원 종료(2026-07-26)로 새 월드를 26.2-133으로. `PaperCompatibilityTest`(봇 없이 콘솔 동작과 26.1.2 월드 업그레이드)와 정품 클라이언트 접속·플레이로 확인. 봇 E2E는 26.1.2 월드로 고정(`init --paper`) | `PaperCompatibilityTest` |
+| 14. 새 월드 기본값 26.2 | 26.1.2 지원 종료(2026-07-26)로 새 월드를 26.2-133으로. `PaperCompatibilityTest`(봇 없이 콘솔 동작과 26.1.2 월드 업그레이드)와 정품 클라이언트 접속·플레이·호스트 이관(한 PC 노드 두 개, 35초)으로 확인. 이때 같은 빌드를 동시에 받으면 서로 덮어쓰던 다운로드 버그를 찾아 고침. 봇 E2E는 26.1.2 월드로 고정(`init --paper`) | `PaperCompatibilityTest` |
 
 ## 남은 단계 (이 순서로 진행)
 
