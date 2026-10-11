@@ -89,17 +89,24 @@ public final class PaperDistribution {
         checkJava(build);
         Metadata meta = metadata(build);
         Files.createDirectories(cacheDir);
-        Path partial = cacheDir.resolve(jar.getFileName() + ".part");
-        HttpResponse<Path> response = http.send(HttpRequest.newBuilder(URI.create(meta.url())).build(), HttpResponse.BodyHandlers.ofFile(partial));
-        if (response.statusCode() != 200) {
-            throw new IOException("Paper " + build + "를 받지 못했다: HTTP " + response.statusCode());
+        // 한 PC의 mcd 여러 개가 같은 빌드를 동시에 받을 수 있어서, 받는 중인 파일은 각자 따로 둔다.
+        Path partial = Files.createTempFile(cacheDir, jar.getFileName() + ".", ".part");
+        try {
+            HttpResponse<Path> response = http.send(HttpRequest.newBuilder(URI.create(meta.url())).build(), HttpResponse.BodyHandlers.ofFile(partial));
+            if (response.statusCode() != 200) {
+                throw new IOException("Paper " + build + "를 받지 못했다: HTTP " + response.statusCode());
+            }
+            String actual = sha256(partial);
+            if (!actual.equals(meta.sha256())) {
+                throw new IOException("Paper " + build + " jar의 해시가 다르다: " + actual);
+            }
+            // 다른 mcd가 먼저 받아 두었으면 그것을 쓴다. Windows에서는 그 jar로 Paper가 돌고 있으면 바꿀 수 없다.
+            if (!Files.exists(jar) || !sha256(jar).equals(meta.sha256())) {
+                Files.move(partial, jar, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(partial);
         }
-        String actual = sha256(partial);
-        if (!actual.equals(meta.sha256())) {
-            Files.delete(partial);
-            throw new IOException("Paper " + build + " jar의 해시가 다르다: " + actual);
-        }
-        Files.move(partial, jar, StandardCopyOption.REPLACE_EXISTING);
         Files.writeString(recordedHash, meta.sha256());
         return jar;
     }

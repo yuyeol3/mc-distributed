@@ -44,6 +44,27 @@ class PaperDistributionTest {
         assertArrayEquals(JAR, Files.readAllBytes(jar));
     }
 
+    /** 한 PC의 mcd 두 개(예: GUI와 CLI)가 같은 캐시에 같은 빌드를 동시에 받아도 둘 다 성공해야 한다. */
+    @Test
+    void concurrentDownloadsOfTheSameBuildBothSucceed() throws Exception {
+        byte[] big = new byte[8 * 1024 * 1024];
+        new java.util.Random(1).nextBytes(big);
+        PaperBuild build = PaperBuild.parse("26.2-133");
+        try (FakePaperApi api = new FakePaperApi().build("26.2-133", big);
+             var pool = java.util.concurrent.Executors.newFixedThreadPool(4)) {
+            List<java.util.concurrent.Future<Path>> downloads = new ArrayList<>();
+            for (int i = 0; i < 4; i++) {
+                downloads.add(pool.submit(() -> new PaperDistribution(api.url()).ensureDownloaded(cache, build)));
+            }
+            for (var download : downloads) {
+                assertArrayEquals(big, Files.readAllBytes(download.get()));
+            }
+        }
+        try (var files = Files.list(cache)) {
+            assertEquals(List.of(), files.filter(f -> f.toString().endsWith(".part")).toList(), "받는 중이던 파일이 남으면 안 된다");
+        }
+    }
+
     @Test
     void rejectsJarWhoseHashDoesNotMatch() throws Exception {
         try (FakePaperApi api = new FakePaperApi().build("26.1.2-80", JAR, "0".repeat(64), "STABLE")) {
