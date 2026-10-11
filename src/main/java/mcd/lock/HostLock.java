@@ -1,6 +1,9 @@
 package mcd.lock;
 
+import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.RmCommand;
+import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
@@ -19,6 +22,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * 월드 repo의 main 브랜치를 락으로 쓰는 호스트 소유권 프로토콜.
@@ -89,8 +94,13 @@ public final class HostLock {
             return new Acquisition(true, next);
         }
         // 동시에 획득하려던 다른 노드가 이겼을 수 있으므로, 시도 전 상태가 아니라 지금 원격 상태를 돌려준다.
-        fetch();
-        ObjectId latest = remoteHead();
+        // 이긴 쪽이 ref를 잠근 채 아직 갱신하지 않았을 때 거절되면 원격이 그대로일 수 있어서, 바뀔 때까지 잠깐 다시 본다.
+        ObjectId latest = remoteHead;
+        for (int i = 0; i < 20 && latest.equals(remoteHead); i++) {
+            if (i > 0) sleepQuietly(Duration.ofMillis(100));
+            fetch();
+            latest = remoteHead();
+        }
         git.reset().setMode(ResetType.HARD).setRef(latest.name()).call();
         return new Acquisition(false, lockAt(latest));
     }
@@ -112,8 +122,21 @@ public final class HostLock {
      * 줄이려면 이것만 저장을 멈춘 동안 하고 {@link #pushCommitted}는 저장을 다시 켠 뒤에 한다(실험 E3).
      */
     public void commitWorld(String message) throws GitAPIException {
-        git.add().addFilepattern(".").call();
-        git.add().addFilepattern(".").setUpdate(true).call();
+        // JGit의 add "."은 바뀌지 않은 파일까지 다시 읽고 압축해서 비용이 월드 전체 크기에 비례한다(실험 E1′).
+        // status(크기와 수정 시각 비교)로 바뀐 파일을 먼저 찾고 그 파일만 stage한다.
+        Status status = git.status().call();
+        Set<String> changed = new TreeSet<>(status.getModified());
+        changed.addAll(status.getUntracked());
+        if (!changed.isEmpty()) {
+            AddCommand add = git.add();
+            changed.forEach(add::addFilepattern);
+            add.call();
+        }
+        if (!status.getMissing().isEmpty()) {
+            RmCommand rm = git.rm().setCached(true);
+            status.getMissing().forEach(rm::addFilepattern);
+            rm.call();
+        }
         git.commit().setMessage(message).setAllowEmpty(true).setSign(false).call();
     }
 
@@ -194,6 +217,14 @@ public final class HostLock {
         push(branch);
         fetch();
         git.reset().setMode(ResetType.HARD).setRef(remoteHead().name()).call();
+    }
+
+    private static void sleepQuietly(Duration d) {
+        try {
+            Thread.sleep(d);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void fetch() throws GitAPIException {

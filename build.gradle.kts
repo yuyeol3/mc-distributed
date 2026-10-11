@@ -40,6 +40,8 @@ val paperTest by tasks.registering(Test::class) {
     useJUnitPlatform {
         includeTags("paper")
     }
+    // 실험 세션 이름(-Dmcd.session=...)을 테스트 JVM으로 넘긴다.
+    providers.systemProperty("mcd.session").orNull?.let { systemProperty("mcd.session", it) }
     testLogging {
         showStandardStreams = true
     }
