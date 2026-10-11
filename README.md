@@ -54,6 +54,7 @@
 - **모두 나가면** 5분 뒤 서버가 스스로 월드를 GitHub에 올리고 꺼진다.
 - **플레이 중에도** 10분마다 월드가 GitHub에 올라간다.
 - **mcd 창을 닫으면** 월드를 저장하고 올린 뒤 끝난다. 그냥 닫으면 된다.
+- **새 버전이 나오면** mcd를 켤 때 업데이트할지 물어본다. 동의하면 받아서 검증한 뒤 mcd를 껐다가(호스트였다면 평소처럼 저장하고 넘김) 바꾼 다음 다시 켠다. 같은 월드를 쓰는 친구들끼리는 버전을 맞추는 게 좋다.
 
 ## 문제 해결
 
@@ -102,6 +103,7 @@ mcd-cli upgrade-paper --remote https://github.com/<계정>/<repo>.git --dir worl
 | | `--address <호스트:포트>` | tailnet 없이 같은 네트워크에서 쓸 때 다른 PC가 내 Paper에 접속할 주소 |
 | | `--cache <폴더>` | Paper jar를 받아 둘 곳(기본 `~/.mcd/cache`) |
 | | `--ttl-seconds`, `--handoff-port` | 테스트용 |
+| `update` | | 새 버전이 있으면 받아서 검증해 두고, 이 설치 폴더의 mcd가 모두 끝나면 바꾼다 |
 | `upgrade-paper` | `--remote`, `--dir`, `--node` | 필수 |
 | | `--paper <버전 또는 버전-빌드>` | 올릴 버전. 버전만 주면(예: `26.2`) 그 버전의 최신 안정 빌드. 호스트가 있는 동안은 안 되고, 옛 버전으로는 되돌릴 수 없다 |
 
@@ -120,7 +122,7 @@ mcd-cli upgrade-paper --remote https://github.com/<계정>/<repo>.git --dir worl
 
 ```sh
 ./gradlew installDist      # build/install/mcd (JAVA_HOME이 Java 25여야 실행된다)
-./gradlew packageZip       # build/distributions/mcd-windows.zip (Java 런타임 포함)
+./gradlew packageZip       # build/distributions/mcd-windows.zip(Java 런타임 포함)과 .sha256
 ./gradlew test             # 단위 테스트: 소유권 프로토콜, 중계, 설정, GitHub 클라이언트
 ./gradlew paperTest        # 실제 Paper + Mineflayer 봇 E2E (느림)
 ```
@@ -147,7 +149,8 @@ experiments/ 실험 기록 (E1′ ~ E6)
 - 호스트를 넘길 때 나가는 PC의 플레이어도 같이 끊긴다.
 - tailnet 인증 키는 월드 repo에 들어가므로 collaborator에게 보인다. GitHub 토큰은 설정 파일에 평문으로 저장된다.
 - tailnet으로 들어온 플레이어는 서버에서 127.0.0.1로 보인다(IP 차단 기능은 쓸 수 없다).
-- 설치 파일(.msi)은 아직 없다(zip을 풀어서 쓴다).
+- 설치 파일(.msi)은 아직 없다(zip을 풀어서 쓴다). 자동 업데이트는 v0.2.0부터 들어 있어서, v0.1.0은 한 번 직접 바꿔야 한다.
+- 자동 업데이트는 받은 파일을 GitHub 릴리스의 SHA-256으로 검증한다. 다운로드가 깨지지 않았는지만 보장하고, 코드 서명은 하지 않는다.
 - 아직 실제 원격 친구 환경에서는 확인하지 않았다(같은 PC의 VM과 테스트 봇으로 확인). 정품 클라이언트로는 한 PC에서 접속, 정품 인증, 첫 기동 대기를 확인했다.
 - GitHub 이용 정책에는 과도한 자동 활동 금지 조항이 있다. mcd는 push 빈도를 낮게 유지하지만, 혹시 모를 계정 제재가 메인 계정에 미치지 않도록 월드 전용 계정을 권한다.
 

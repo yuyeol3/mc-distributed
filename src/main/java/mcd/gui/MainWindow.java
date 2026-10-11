@@ -3,6 +3,8 @@ package mcd.gui;
 import mcd.config.Settings;
 import mcd.node.Node;
 import mcd.node.Timing;
+import mcd.update.AppVersion;
+import mcd.update.Updater;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 
 import javax.swing.BorderFactory;
@@ -25,6 +27,7 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /** 노드를 띄우고 상태, 접속 안내, 로그를 보여준다. 창을 닫으면 저장하고 락을 반납한 뒤 끝난다. */
@@ -98,6 +101,32 @@ final class MainWindow extends JFrame {
                 SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "시작하지 못했다: " + e.getMessage()));
             }
         });
+        Thread.ofPlatform().daemon().name("update-check").start(this::checkForUpdate);
+    }
+
+    /** 새 버전이 있으면 물어보고, 동의하면 받아서 검증한 뒤 mcd를 정상 종료하고 바꾼 다음 다시 켠다. */
+    private void checkForUpdate() {
+        Optional<AppVersion> current = AppVersion.current();
+        Optional<Path> installDir = Updater.installDir();
+        if (current.isEmpty() || installDir.isEmpty()) return; // 개발 중 실행
+        try {
+            Updater updater = Updater.official();
+            Optional<Updater.Release> release = updater.newerThan(current.get());
+            if (release.isEmpty()) return;
+            String question = "새 버전 " + release.get().version() + "이(가) 있다(지금 " + current.get() + "). 지금 업데이트할까?\n"
+                    + "월드를 저장하고 mcd를 껐다가, 바꾼 뒤 다시 켠다. 호스트라면 접속 중인 사람은 다른 PC로 옮겨 간다.";
+            int[] answer = new int[1];
+            SwingUtilities.invokeAndWait(() ->
+                    answer[0] = JOptionPane.showConfirmDialog(this, question, "mcd 업데이트", JOptionPane.YES_NO_OPTION));
+            if (answer[0] != JOptionPane.YES_OPTION) return;
+            log("새 버전 " + release.get().version() + "을(를) 받는 중이다.");
+            Path newApp = updater.download(release.get());
+            updater.launchReplacer(newApp, installDir.get(), Optional.of(installDir.get().resolve("mcd.exe")));
+            log("업데이트를 준비했다. mcd를 껐다가 다시 켠다.");
+            shutdown();
+        } catch (Exception e) {
+            log("업데이트하지 못했다: " + e.getMessage());
+        }
     }
 
     private void sendCommand() {

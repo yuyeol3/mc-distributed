@@ -273,8 +273,9 @@ sequenceDiagram
 | `mcd.net` | 네트워크 | `Relay`(중계, 서버 목록 응답, 로그인 붙잡기), `Protocol`(첫머리 패킷), `Tailnet`(`mcd-net` 실행과 SOCKS5) |
 | `mcd.server` | Paper 제어 | `PaperServer`(프로세스, 콘솔 명령, 저장 제어), `PaperDistribution`(월드가 정한 빌드 다운로드, 해시 검증, 지원 범위), `PaperBuild`, `ParentWatchdog`(Java 에이전트) |
 | `mcd.world` | 월드 repo | `WorldRepository`(생성, clone), `WorldTemplate`(초기 파일), `NetworkConfig` |
-| `mcd.cli` | CLI | `Main`, `InitCommand`, `PlayCommand`, `UpgradeCommand` |
+| `mcd.cli` | CLI | `Main`, `InitCommand`, `PlayCommand`, `UpgradeCommand`, `UpdateCommand` |
 | `mcd.gui` | GUI | `App`, `SetupDialog`(첫 실행 마법사), `MainWindow` |
+| `mcd.update` | 자동 업데이트 | `Updater`(릴리스 확인, 받기, 검증, 교체 스크립트), `AppVersion`, `Json`(작은 JSON 파서) |
 | `mcd.config`, `mcd.github` | GUI 지원 | `Settings`(`~/.mcd/settings.properties`), `GitHubClient`(토큰 확인, private repo 생성) |
 | `net-helper/` (Go) | tailnet 보조 프로그램 | `mcd-net`: tsnet, SOCKS5, 들어오는 포워딩 |
 
@@ -300,6 +301,31 @@ flowchart LR
 - **월드 업그레이드**: `mcd upgrade-paper`가 락을 잡고 버전 파일을 바꾼 뒤 반납한다. 호스트가 있는 동안에는 할 수 없고, 다운그레이드는 거부한다. 다음 호스트가 새 빌드로 월드를 열면서 월드 파일이 업그레이드된다.
 - GraalVM native-image는 쓰지 않는다. Paper가 JVM을 필요로 해서 런타임을 뺄 수 없고, 얻는 것은 런처 시작 속도 정도다.
 - 설치 파일(.msi)은 WiX Toolset이 필요해서 아직 만들지 않는다.
+
+### 자동 업데이트
+
+같은 월드를 쓰는 친구들의 mcd 버전이 다르면 락 형식이나 중계 동작이 어긋날 수 있어서, 앱이 스스로 업데이트한다(v0.2.0부터).
+
+```mermaid
+sequenceDiagram
+    participant M as mcd (설치 폴더)
+    participant G as GitHub Releases
+    participant S as 교체 스크립트 (PowerShell)
+    M->>G: 릴리스 목록 (초안 제외, 미리보기 포함)
+    G-->>M: 더 새 버전 + mcd-windows.zip + .sha256
+    M->>G: zip과 .sha256 받기
+    M->>M: SHA-256 검증, 임시 폴더에 풀기
+    M->>S: 스크립트 시작
+    M->>M: 정상 종료 (호스트였다면 저장, 반납, 이관)
+    S->>S: 그 설치 폴더의 프로세스가 모두 끝나기를 기다림
+    S->>S: robocopy /E 로 덮어쓰기
+    S->>M: (GUI라면) mcd 다시 켜기
+```
+
+- 앱 버전은 jar manifest의 `Implementation-Version`(Gradle의 `version`)이고, 릴리스 태그(`v0.2.0`)와 비교한다.
+- 실행 중인 exe, jar, Java 런타임은 Windows에서 덮어쓸 수 없어서 별도 스크립트가 mcd가 끝난 뒤에 바꾼다. PowerShell은 Windows에 기본으로 있다.
+- 사용자가 설치 폴더에 둔 다른 파일을 지우지 않도록 `/MIR`이 아니라 `/E`로 복사한다. 옛 jar가 남아도 `mcd.cfg`가 정확한 목록을 쓴다.
+- 해시와 zip이 같은 곳(GitHub)에서 오므로 다운로드가 깨지지 않았는지만 보장한다. 누가 만든 파일인지는 코드 서명이 있어야 보장할 수 있다.
 
 ## 11. 테스트 전략
 

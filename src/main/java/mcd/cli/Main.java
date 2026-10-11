@@ -36,6 +36,8 @@ public final class Main {
               mcd upgrade-paper --remote <git URL> --dir <폴더> --node <이름> --paper <버전 또는 버전-빌드>
                   월드가 쓰는 Paper(= 마인크래프트 버전)를 올린다. 버전만 주면 그 버전의 최신 안정 빌드를 쓴다.
                   호스트가 있는 동안은 바꿀 수 없고, 옛 버전으로는 되돌릴 수 없다. 모두 클라이언트를 그 버전으로 맞춰야 한다.
+              mcd update
+                  새 버전이 있으면 받아서 검증해 두고, 이 설치 폴더의 mcd가 모두 끝나면 바꾼다.
             GitHub 토큰은 환경 변수 MCD_GITHUB_TOKEN으로 넘긴다.
             """;
 
@@ -80,6 +82,7 @@ public final class Main {
                         Integer.parseInt(opts.getOrDefault("handoff-port", opts.getOrDefault("listen", "25565")))),
                         opts.containsKey("accept-eula")).run();
             }
+            case "update" -> UpdateCommand.run(message -> System.out.println("[mcd] " + message));
             case "upgrade-paper" -> UpgradeCommand.run(
                     Path.of(require(opts, "dir")),
                     require(opts, "remote"),

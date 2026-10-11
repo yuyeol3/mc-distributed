@@ -1,8 +1,12 @@
+import java.security.MessageDigest
+
 plugins {
     application
 }
 
 group = "mcd"
+// 릴리스 태그(v0.2.0)와 같게 둔다. 앱은 이 값과 GitHub의 최신 릴리스를 비교해 업데이트를 안내한다.
+version = "0.2.0"
 
 repositories {
     mavenCentral()
@@ -44,6 +48,14 @@ distributions {
         contents {
             from(netHelper) { into("lib") }
         }
+    }
+}
+
+tasks.jar {
+    // 버전을 붙이지 않는다: jpackage의 --main-jar와 업데이트 후 남는 파일 이름을 고정한다.
+    archiveFileName = "mcd.jar"
+    manifest {
+        attributes("Implementation-Version" to project.version)
     }
 }
 
@@ -112,6 +124,7 @@ val jpackageImage by tasks.registering(Exec::class) {
     args("--type", "app-image", "--name", "mcd",
         "--input", layout.buildDirectory.dir("install/mcd/lib").get().asFile.absolutePath,
         "--main-jar", "mcd.jar", "--main-class", "mcd.gui.App",
+        "--app-version", project.version.toString(),
         "--runtime-image", packageDir.get().dir("runtime").asFile.absolutePath,
         // mcd.exe는 GUI, mcd-cli.exe는 콘솔 창이 있는 CLI다.
         "--add-launcher", "mcd-cli=" + file("src/jpackage/mcd-cli.properties").absolutePath,
@@ -124,4 +137,11 @@ val packageZip by tasks.registering(Zip::class) {
     dependsOn(jpackageImage)
     from(packageDir.map { it.dir("mcd") }) { into("mcd") }
     archiveFileName = "mcd-windows.zip"
+    // 자동 업데이트가 받은 zip을 검증할 SHA-256을 옆에 남긴다(릴리스에 함께 올린다).
+    doLast {
+        val zip = archiveFile.get().asFile
+        val digest = MessageDigest.getInstance("SHA-256").digest(zip.readBytes())
+        val hex = digest.joinToString("") { "%02x".format(it) }
+        zip.resolveSibling(zip.name + ".sha256").writeText("$hex  ${zip.name}\n")
+    }
 }
