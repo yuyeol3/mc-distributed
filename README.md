@@ -2,6 +2,9 @@
 
 상시 서버 없이 친구들이 하나의 마인크래프트 월드를 공유한다. 플레이하려는 사람의 PC가 그때그때 Paper 서버가 되고, 월드는 git 원격 저장소(GitHub private repo 등)에 버전으로 보관된다.
 
+- 동작 방식과 설계 근거(다이어그램 포함): [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- 진행 상황과 남은 과제: [docs/PLAN.md](docs/PLAN.md)
+
 ## 배포판
 
 `./gradlew packageZip`은 Java 25 런타임을 포함한 실행 폴더를 `build/distributions/mcd-windows.zip`으로 묶는다. 사용자는 Java를 설치할 필요가 없다. 설치 파일(.exe/.msi)은 WiX Toolset이 있어야 만들 수 있어서 아직 없다.

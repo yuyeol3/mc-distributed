@@ -1,0 +1,337 @@
+# mcd 아키텍처와 기술 설명
+
+이 문서는 mcd가 어떻게 동작하는지, 왜 그렇게 만들었는지를 설명한다. 진행 상황과 남은 과제는 [PLAN.md](PLAN.md), 실험 수치는 [`experiments/`](../experiments)에 있다.
+
+## 1. 무엇을 하는가
+
+mcd는 **상시 서버 없이 친구들이 하나의 마인크래프트 월드를 공유**하게 한다.
+
+- 플레이하려는 사람의 PC가 그때그때 Paper 서버(호스트)가 된다. 아무도 없으면 어느 PC에서도 서버가 돌지 않는다.
+- 월드는 git 원격 저장소(GitHub private repo 등)에 버전으로 보관된다. 누가 다음에 호스트가 되든 최신 월드에서 이어간다.
+- 사용자는 마인크래프트에서 항상 `localhost:25565`에 접속한다. mcd가 현재 호스트로 이어주고, 호스트가 없으면 그 PC를 호스트로 만든다.
+
+이 목표에서 나오는 세 가지 핵심 문제와 해결 방식은 다음과 같다.
+
+| 문제 | 해결 |
+|---|---|
+| 동시에 두 명이 호스트가 되면 월드가 갈라진다 | git의 force 없는 push를 compare-and-swap으로 쓰는 락 (3장) |
+| 플레이 중에도 월드를 안전하게 공유해야 한다 | 저장을 멈춘 짧은 순간의 스냅샷 커밋 (4장) |
+| 서로 다른 집의 PC가 접속해야 한다 | 로컬 중계와 내장 tailnet (5장, 6장) |
+
+## 2. 전체 구조
+
+```mermaid
+flowchart TB
+    subgraph PB["플레이어 B의 PC"]
+        MCB["마인크래프트"] -->|"localhost:25565"| RB["mcd 중계"]
+        RB -->|"SOCKS5"| NB["mcd-net"]
+    end
+    subgraph PA["플레이어 A의 PC (지금 호스트)"]
+        MCA["마인크래프트"] -->|"localhost:25565"| RA["mcd 중계"]
+        RA -->|"127.0.0.1:25566"| PAPER["Paper 서버"]
+        NA["mcd-net"] -->|"로컬 25566으로"| PAPER
+    end
+    NB ==>|"tailnet (WireGuard)"| NA
+    PA <-->|"fetch / push"| GIT[("git 원격 저장소<br/>월드 + 락")]
+    PB <-->|"fetch"| GIT
+```
+
+조정 서버(Tailscale 또는 Headscale)는 두 `mcd-net`이 서로를 찾고 키를 교환하는 데만 쓰인다. 게임 트래픽은 가능하면 PC끼리 직접, 안 되면 DERP 중계 서버를 거쳐 오간다.
+
+- **git 원격 저장소**는 두 가지 역할을 한다. 월드의 보관소이자, 누가 호스트인지 정하는 락이다. 별도의 조정 서버를 두지 않는다.
+- **mcd 중계**는 모든 PC에서 `localhost:25565`를 열어 두고, 연결마다 현재 호스트로 바이트를 그대로 넘긴다.
+- **mcd-net**은 mcd에 들어 있는 tailnet 클라이언트다. 친구는 Tailscale을 설치하거나 로그인하지 않는다.
+
+## 3. 소유권 프로토콜 (락)
+
+### 3.1 git push를 CAS로 쓴다
+
+force 없는 push는 "원격 `main`이 내가 아는 커밋일 때만 내 커밋으로 바꿔라"라는 compare-and-swap이다. 여러 노드가 같은 부모 위에 서로 다른 커밋을 만들어 동시에 push하면 **정확히 하나만 성공**한다. 로컬 bare repo 100회, GitHub 20회 실험에서 모두 그랬다([E2](../experiments/E2-results.md)). 진 쪽의 거절 사유(`failed to lock`, `cannot lock ref` 등)는 환경마다 달라서, 프로토콜은 결과가 OK인지만 본다.
+
+**락과 월드를 같은 ref(`main`)에 둔다.** 그래서 다른 노드가 락을 가져가면 `main`이 앞으로 나가고, 락을 잃은 옛 호스트의 이후 push는 git이 거절한다. 펜싱을 git이 해주는 셈이다. force push는 어디에서도 쓰지 않는다.
+
+### 3.2 월드 repo의 구성
+
+작업 트리가 곧 Paper 서버 폴더다.
+
+| 파일 | 내용 |
+|---|---|
+| `world/` | 월드 데이터(Paper 26.1 구조: `world/dimensions/minecraft/...`, `world/players/data/`) |
+| `mcd-lock.properties` | 락: `owner`, `epoch`, `state`(FREE/HOSTING), `address`(다른 노드가 접속할 주소) |
+| `mcd-paper-build.txt` | 이 월드를 만든 Paper 빌드(`26.1.2-74`). 다른 빌드로 열지 않는다(26.1+ 월드는 다운그레이드 불가) |
+| `mcd-network.properties` | 선택. tailnet 조정 서버 주소와 인증 키 |
+| `server.properties` | `online-mode`, `region-file-compression=deflate`, `accepts-transfers=true` |
+| `bukkit.yml` | `ticks-per.autosave: 0` (4장 참고) |
+| `.gitignore` | `libraries/`, `versions/`, `cache/`, `logs/`, `*.jar`, `eula.txt`, `world/session.lock` 등 노드마다 다르거나 Paper가 다시 만드는 것 |
+
+### 3.3 상태와 전이
+
+```mermaid
+stateDiagram-v2
+    [*] --> FREE: 월드 생성 (epoch 0)
+    FREE --> HOSTING: 획득 push 성공 (epoch+1)
+    HOSTING --> HOSTING: heartbeat / 스냅샷 push
+    HOSTING --> FREE: 반납 (월드 + FREE를 커밋 하나로)
+    HOSTING --> HOSTING: lease 만료 후 다른 노드가 인수 (epoch+1, owner 바뀜)
+```
+
+### 3.4 획득
+
+```mermaid
+sequenceDiagram
+    participant N as 노드
+    participant R as git 원격 (main)
+    N->>R: fetch
+    N->>N: 이전 실행의 잔여 변경 정리 (3.6)
+    N->>N: 원격 락 확인: FREE, 내 것, 또는 lease 만료?
+    alt 가져갈 수 없음
+        N-->>N: 현재 호스트 주소를 돌려준다
+    else 가져갈 수 있음
+        N->>N: 작업 트리를 원격 main으로 맞춤 (= 최신 월드)
+        N->>N: 락 커밋 (owner=나, epoch+1, HOSTING, 내 주소)
+        N->>R: push (force 없음)
+        alt 성공
+            R-->>N: OK → 호스트가 됨
+        else 다른 노드가 먼저 이김
+            R-->>N: 거절
+            N->>R: 원격이 바뀔 때까지 다시 fetch
+            N-->>N: 이긴 노드의 락을 돌려준다
+        end
+    end
+```
+
+### 3.5 lease, heartbeat, 펜싱
+
+시간 값은 모두 TTL(기본 10분)에서 계산한다(`Timing.fromTtl`). GitHub 이용 정책의 과도한 자동 활동 조항을 고려해 push 빈도를 낮게 잡았다.
+
+| 값 | 계산 | 기본값 | 쓰임 |
+|---|---|---|---|
+| TTL | - | 10분 | lease 만료 판정 |
+| heartbeat | TTL/5 | 2분 | 호스트가 락이 살아 있음을 알리는 빈 커밋 push |
+| 스냅샷 | TTL | 10분 | 월드 스냅샷 push(heartbeat도 겸함) |
+| 여유분 | TTL/5 | 2분 | 호스트 자진 종료 판정 |
+| 관찰 주기 | TTL/20 | 30초 | 호스트가 아닌 노드의 락 확인 |
+| 빈 서버 종료 | TTL/2 | 5분 | 접속자가 없으면 호스트가 스스로 반납 |
+
+- **lease 만료는 자기 시계로만 판정한다.** "같은 `main` 커밋을 내가 관찰한 지 TTL이 지났다"면 만료다. 다른 PC의 시계와 비교하지 않으므로 시계가 틀어져도 영향이 없다.
+- **호스트의 자진 종료(펜싱)**: 다른 노드는 heartbeat 커밋을 push가 *시작된* 순간부터 볼 수 있다. 그래서 호스트는 `마지막으로 성공한 push의 시작 시각 + TTL - 여유분`이 지나도록 갱신하지 못하면 스스로 서버를 내린다. 그래도 남는 틈은 3.1의 git 거절이 막는다.
+
+### 3.6 크래시 후 복귀와 recovery 브랜치
+
+노드가 시작할 때(실제로는 매번 원격을 확인할 때) 이전 실행이 남긴 커밋이나 커밋하지 않은 월드 변경이 있으면 정리한다.
+
+```mermaid
+flowchart TD
+    S["로컬에 push하지 못한 커밋이나 변경이 있다"] --> D{"원격 락이 HOSTING이고<br/>주인이 나이며<br/>원격이 그대로인가?"}
+    D -->|"예: 그동안 아무도 가져가지 않음"| M["main에 이어서 push"]
+    D -->|"아니오"| B["recovery/노드-epoch-커밋 브랜치에만 push"]
+    B --> RS["작업 트리는 원격 main을 따른다"]
+```
+
+recovery 브랜치는 사람이 나중에 살펴볼 수 있도록 남기는 것이고, `main`에는 절대 섞지 않는다.
+
+## 4. 플레이 중 스냅샷
+
+Paper가 도는 동안 월드 파일은 계속 바뀐다. 파일이 바뀌는 도중에 커밋하면 깨진 스냅샷이 된다.
+
+```mermaid
+sequenceDiagram
+    participant H as HostSession
+    participant P as Paper
+    participant G as 로컬 git
+    participant R as git 원격
+    H->>P: save-off
+    H->>P: save-all flush
+    P-->>H: "Saved the game"
+    H->>G: 바뀐 파일만 stage하고 커밋
+    H->>P: save-on
+    H->>R: push
+```
+
+- **Paper 자동 저장은 끈다.** `save-off` 중에도 Paper 자동 저장은 `level.dat`과 `data/*.dat`을 썼다(실험 E3 1차, 20라운드 중 1회). 월드 템플릿의 `bukkit.yml`에서 끄고, 저장은 이 스냅샷이 맡는다. 끈 뒤에는 20라운드 모두 저장을 멈춘 동안 바뀐 파일이 없었다([E3](../experiments/E3-results.md)).
+- **저장을 멈추는 건 커밋하는 동안뿐이다.** push는 이미 만든 git 객체를 보내는 것이라 파일이 고정될 필요가 없어서, 저장을 다시 켠 뒤에 한다.
+- **바뀐 파일만 stage한다.** JGit의 `add "."`은 바뀌지 않은 파일까지 다시 읽고 압축해서 커밋 시간이 월드 전체 크기에 비례했다(0.9초 → 9.7초). `status`(크기와 수정 시각 비교)로 바뀐 파일을 찾아 그것만 stage하니 1초 안팎이 됐다. 조정에 쓰지 않은 세션으로도 확인했다([E1′](../experiments/E1-prime-results.md)).
+- **저장 형식은 바꾸지 않는다.** MCA는 청크마다 따로 압축하고 바뀌지 않은 청크의 바이트가 그대로 남아서, gc 후에는 git delta가 바뀐 부분만 잡는다. 스냅샷 20개의 이력을 합쳐도 최신 월드 크기(174MB)와 거의 같았다(176MB). 텍스트(SNBT) 변환은 이득이 없다고 판단했다.
+
+## 5. 노드와 중계
+
+### 5.1 노드의 생명주기
+
+`mcd play`(또는 GUI)는 계속 켜져 있는 노드다. 호스트인 동안은 `HostSession`이 git 작업 트리와 Paper를 맡고, 아닌 동안은 `Node`가 락을 관찰한다.
+
+```mermaid
+stateDiagram-v2
+    state "관찰" as Watching
+    state "호스트" as Hosting
+    state "종료" as Stopped
+    [*] --> Watching: 노드 시작 (중계 열기, tailnet 붙기)
+    Watching --> Watching: 30초마다 락 확인 (lease 만료 판정)
+    Watching --> Hosting: 연결이 들어왔고 락을 가져갈 수 있음
+    Hosting --> Watching: 빈 서버 5분 → 반납
+    Hosting --> Watching: 락을 잃음 → 서버 내림 (반납 안 함)
+    Hosting --> Stopped: 사용자 종료, 접속자 없음 → 반납
+    Hosting --> Stopped: 사용자 종료, 접속자 있음 → 이관 (7장)
+    Watching --> Stopped: 사용자 종료
+    Stopped --> [*]
+```
+
+### 5.2 연결이 들어왔을 때 (`Node.route`)
+
+```mermaid
+flowchart TD
+    C["localhost:25565로 연결"] --> H{"이 PC가 호스트인가?"}
+    H -->|"예"| L["Paper가 준비될 때까지 최대 25초 대기 → 127.0.0.1:25566"]
+    H -->|"아니오"| P["원격 락 확인 (peek)"]
+    P --> T{"가져갈 수 있나?<br/>(FREE, 내 것, lease 만료)"}
+    T -->|"아니오"| O["락의 address(다른 호스트)로 중계"]
+    T -->|"예"| A["획득 시도"]
+    A -->|"성공"| S["Paper 시작 → 준비되면 이어줌"]
+    A -->|"다른 노드가 이김"| O
+```
+
+- 25초는 마인크래프트 클라이언트의 읽기 제한(약 30초)보다 짧게 잡은 값이다. 그보다 오래 걸리면 연결을 닫고, 플레이어가 다시 접속하면 된다. 새 폴더의 첫 Paper 기동은 mojang jar를 받고 패치하느라 이 시간을 넘길 수 있다(알려진 한계).
+
+### 5.3 중계 (`Relay`)
+
+- 마인크래프트 프로토콜을 해석하지 않고 **바이트를 그대로** 넘긴다. 그래서 암호화와 정품 인증은 클라이언트와 Paper 사이에서 그대로 이뤄진다.
+- 다른 PC에서 들어오지 못하도록 loopback 주소에만 연다.
+- 목적지가 loopback이 아니면(다른 호스트) tailnet의 SOCKS5를 거쳐 나간다.
+- 호스트가 막 바뀐 직후에는 새 호스트의 Paper가 아직 기동 중일 수 있어서, 연결이 거절되면 25초 동안 다시 시도한다.
+- **스레드 모델**: 중계는 플랫폼 스레드를 쓴다. Windows에서 가상 스레드로 소켓을 중계하면 가끔 읽을 데이터가 있는데도 깨어나지 않아 연결이 멈췄다(40회 중 3~4회, 스레드 덤프로 확인). 연결 수는 플레이어 수 정도라 플랫폼 스레드로 충분하다.
+
+## 6. 네트워크 (tailnet 내장)
+
+서로 다른 집의 PC는 NAT 뒤에 있어서 직접 접속할 수 없다. 오픈소스 VPN도 결국 공인 IP가 있는 중개 노드나 조정 서버가 필요하다. mcd는 Tailscale의 Go 라이브러리 **tsnet**으로 만든 보조 프로그램 `mcd-net`을 내장한다([E5](../experiments/E5-results.md)).
+
+```mermaid
+flowchart LR
+    subgraph B["친구 PC"]
+        RB["mcd 중계"] -->|"SOCKS5 (127.0.0.1)"| NB["mcd-net"]
+    end
+    subgraph A["호스트 PC"]
+        NA["mcd-net"] -->|"--expose 25566=127.0.0.1:25566"| PA["Paper :25566"]
+    end
+    NB ==>|"tailnet 100.x.y.z:25566"| NA
+```
+
+- mcd가 `mcd-net`을 자식 프로세스로 띄운다. `mcd-net`은 준비되면 `READY <tailnet IP> <SOCKS 주소>`를 출력하고, mcd가 끝나 stdin이 닫히면 같이 끝난다.
+- 월드 repo의 `mcd-network.properties`가 있으면 켜진다. 월드 주인이 인증 키를 한 번 넣으면 친구들은 clone할 때 같이 받는다.
+- 락의 `address`에는 호스트의 tailnet 주소가 적힌다.
+- 노드 키 같은 tailnet 상태는 월드 폴더(git 작업 트리) 밖, `<cache>/../tailnet/`에 둔다. 월드 폴더에 두면 커밋될 수 있다.
+- 조정 서버는 기본으로 Tailscale을 쓰고, Headscale 같은 다른 서버도 쓸 수 있다. 개발 테스트는 Headscale을 써서 계정 없이 한다.
+
+## 7. 호스트 이관
+
+다른 사람이 접속해 있는데 호스트가 나가면 서버를 넘긴다.
+
+```mermaid
+sequenceDiagram
+    participant PA as 옛 호스트 Paper
+    participant HA as 옛 호스트 mcd
+    participant R as git 원격
+    participant RB as 다른 PC의 mcd 중계
+    participant CB as 그 PC의 클라이언트
+    HA->>PA: save-off, save-all flush
+    HA->>R: 월드 + 락 FREE를 커밋 하나로 push
+    HA->>PA: transfer localhost 25565 @a
+    PA-->>CB: transfer 패킷
+    CB->>RB: localhost:25565로 다시 접속
+    RB->>R: 락 확인 (FREE) → 획득 경쟁
+    Note over RB: 한 노드만 이긴다. 이긴 노드는 Paper를 띄우고,<br/>진 노드의 중계는 그 Paper가 열릴 때까지 재시도한다
+    HA->>PA: stop
+    HA->>HA: 넘긴 뒤의 잔여 변경을 버림
+```
+
+- transfer는 1.20.5부터 바닐라에 있는 기능이다. 대상 주소 `localhost`는 각 클라이언트의 *자기 PC*로 풀리므로, 모두에게 같은 명령 한 줄이면 각자의 중계로 돌아간다.
+- 기존 서버에서 플레이어가 곧바로 빠지므로, 처음 계획했던 읽기 전용 구간(adventure 모드, `tick freeze`)이 필요 없다.
+- 넘긴 뒤 기존 서버가 종료하면서 쓴 파일(플레이어가 나가며 저장된 데이터 등)은 이미 넘긴 스냅샷보다 뒤의 것이라 버린다. 남기면 다음 실행 때 recovery 브랜치가 쓸데없이 생긴다.
+- 나가는 PC의 플레이어는 같이 끊긴다. 그 PC의 사용자가 나가는 것이라 자연스럽다.
+
+## 8. 장애 처리
+
+| 상황 | 동작 |
+|---|---|
+| 두 노드가 동시에 호스트가 되려 함 | push CAS로 하나만 이긴다. 진 쪽은 이긴 쪽으로 중계한다 |
+| 호스트 PC가 갑자기 꺼짐 | 다른 노드가 TTL 동안 같은 `main`을 관찰하면 인수한다. 마지막 스냅샷까지의 월드로 이어진다 |
+| 꺼졌던 옛 호스트가 다시 켜짐 | push하지 못한 변경은 recovery 브랜치로만 간다. `main`은 갈라지지 않는다 |
+| mcd만 죽음 | Paper는 stdin이 닫혀도 계속 돌기 때문에, Paper JVM에 붙인 Java 에이전트(`ParentWatchdog`)가 부모(mcd)의 종료를 감지해 Paper를 정상 종료시킨다. 다시 켜면 자기 락을 다시 잡고 그 플레이 기록을 이어 올린다 |
+| Paper가 비정상 종료 | 쓰다 만 월드 파일을 믿을 수 없으므로 락만 반납한다(마지막 스냅샷까지만 공유). 남은 변경은 다음 실행 때 recovery로 간다 |
+| 호스트가 원격 저장소에 닿지 못함 | 다음 주기에 다시 시도한다. 여유분까지 갱신하지 못하면 스스로 서버를 내린다 |
+| 호스트가 락을 잃음(push 거절) | 즉시 서버를 내리고 반납하지 않는다 |
+| Ctrl+C | Windows에서는 Paper에도 전달된다. Paper는 저장하고 끝나며, 종료를 요청한 경우이므로 정상 반납한다 |
+| 엉뚱한 git repo를 월드로 엶 | `mcd-paper-build.txt`가 없으면 아무것도 쓰기 전에 거부한다 |
+
+## 9. 모듈 구성
+
+| 패키지 | 책임 | 주요 클래스 |
+|---|---|---|
+| `mcd.lock` | 소유권 프로토콜 | `HostLock`(획득, heartbeat, 스냅샷, 반납, 펜싱, 복귀), `LockState` |
+| `mcd.node` | 한 PC의 노드 | `Node`(중계, 라우팅, 관찰, tailnet), `HostSession`(Paper, heartbeat, 스냅샷, 빈 서버 종료, 이관), `Timing` |
+| `mcd.net` | 네트워크 | `Relay`(바이트 중계), `Tailnet`(`mcd-net` 실행과 SOCKS5) |
+| `mcd.server` | Paper 제어 | `PaperServer`(프로세스, 콘솔 명령, 저장 제어), `PaperDistribution`(고정 빌드 다운로드와 해시 확인), `ParentWatchdog`(Java 에이전트) |
+| `mcd.world` | 월드 repo | `WorldRepository`(생성, clone), `WorldTemplate`(초기 파일), `NetworkConfig` |
+| `mcd.cli` | CLI | `Main`, `InitCommand`, `PlayCommand` |
+| `mcd.gui` | GUI | `App`, `SetupDialog`(첫 실행 마법사), `MainWindow` |
+| `mcd.config`, `mcd.github` | GUI 지원 | `Settings`(`~/.mcd/settings.properties`), `GitHubClient`(토큰 확인, private repo 생성) |
+| `net-helper/` (Go) | tailnet 보조 프로그램 | `mcd-net`: tsnet, SOCKS5, 들어오는 포워딩 |
+
+의존 방향은 `cli`/`gui` → `node` → `lock`, `net`, `server`, `world`이다. `lock`은 JGit에만 의존하고 Paper나 네트워크를 모른다.
+
+## 10. 배포
+
+```mermaid
+flowchart LR
+    SRC["Java 소스"] --> JAR["mcd.jar + JGit"]
+    GO["net-helper (Go)"] --> NET["mcd-net.exe"]
+    JDK["JDK 25"] -->|"jlink (전체 모듈, java.exe 포함)"| RT["런타임"]
+    JAR --> IMG["jpackage app-image"]
+    NET --> IMG
+    RT --> IMG
+    IMG --> ZIP["mcd-windows.zip<br/>mcd.exe (GUI), mcd-cli.exe"]
+```
+
+- 사용자는 Java를 설치하지 않는다. 같은 런타임으로 Paper도 띄운다.
+- jpackage는 기본적으로 런타임에서 `java.exe`를 빼지만 mcd는 그 런타임으로 Paper를 띄워야 해서, 런타임을 jlink로 직접 만든다. JDK 25에는 jmods가 없어서 `java --list-modules`로 모듈 목록을 받고, 런타임 이미지 링크에서 넣을 수 없는 `jdk.jlink`는 뺀다.
+- Paper jar는 배포판에 넣지 않고 첫 실행 때 받는다. 빌드와 SHA-256은 코드에 고정돼 있다.
+- GraalVM native-image는 쓰지 않는다. Paper가 JVM을 필요로 해서 런타임을 뺄 수 없고, 얻는 것은 런처 시작 속도 정도다.
+- 설치 파일(.msi)은 WiX Toolset이 필요해서 아직 만들지 않는다.
+
+## 11. 테스트 전략
+
+| 층 | 무엇을 | 어떻게 | 실행 |
+|---|---|---|---|
+| 단위 | 소유권 프로토콜: 경쟁, 만료, heartbeat, 펜싱, 크래시 복귀, recovery | 진짜 로컬 bare repo + 주입한 가짜 시계 | `./gradlew test` |
+| 단위 | 중계, 설정, GitHub 클라이언트, 월드 오인 방지 | 에코 서버, 로컬 HTTP 서버 | `./gradlew test` |
+| 통합 | push CAS(로컬, GitHub), 플레이 중 스냅샷 일관성 | 실제 git, 실제 Paper | `./gradlew test`, `paperTest` |
+| E2E | P0 시나리오 5개, mcd 크래시, transfer, tailnet, 이관 | 노드는 별도 JVM 프로세스, 플레이어는 Mineflayer 봇(offline mode) | `./gradlew paperTest` |
+| 실험 | 저장 형식, 커밋 비용, 네트워크 | 기록한 세션 재생, VM(`mcd-friend`) + Headscale | `experiments/*.md` |
+
+- 봇은 각 노드의 중계(`localhost`)에만 접속한다. 실제 플레이어와 같은 경로다.
+- Mineflayer는 서버 transfer 패킷을 처리하지 않아서, `e2e/bot.js`가 패킷을 받으면 그 주소로 다시 접속하게 직접 구현했다.
+- 버그를 고칠 때는 테스트가 실제로 그 버그를 잡는지, 코드를 일부러 망가뜨려 확인했다(mutation 확인).
+- 성능이나 일반화 주장은 조정에 쓰지 않은 데이터로 확인했다(E1′의 검증용 세션).
+
+## 12. 주요 설계 결정
+
+| 결정 | 이유 | 근거 |
+|---|---|---|
+| git 원격을 월드 보관소이자 락으로 | 상시 서버 없이 원자적 소유권을 얻는다. GitHub 같은 무료 호스팅을 그대로 쓴다 | E2 |
+| 락과 월드를 같은 ref에 | 락을 잃은 호스트의 push를 git이 거절한다(펜싱) | 검토 에이전트 지적 후 변경 |
+| lease를 자기 시계로만 판정 | PC 간 시계 차이에 영향받지 않는다 | |
+| JGit | 사용자가 git을 설치하지 않는다. push 결과를 코드로 받는다 | |
+| Paper 빌드 고정 | 모든 호스트가 같은 빌드를 써야 월드가 업그레이드되지 않는다 | |
+| Paper 자동 저장 끄기 | `save-off` 중에도 레벨 데이터를 써서 스냅샷이 흔들린다 | E3 |
+| 바뀐 파일만 stage | JGit `add "."`의 비용이 월드 크기에 비례한다 | E1′ |
+| 저장 형식은 그대로 | gc 후 이력 비용이 거의 없다 | E1′ |
+| 주소는 항상 `localhost:25565` | 호스트가 바뀌어도, 네트워크 방식이 바뀌어도 사용자는 그대로다 | E6 |
+| 바이트 중계 | 프로토콜을 몰라도 되고 정품 인증을 건드리지 않는다 | E6 |
+| tsnet 내장 | 친구는 설치나 로그인 없이 NAT 너머로 연결된다 | E5 |
+| transfer로 즉시 이관 | 읽기 전용 구간 없이 이관이 단순해진다 | M3 |
+| 스트림 읽기와 중계는 플랫폼 스레드 | 가상 스레드에서 캐리어 고정(CPU 2개 PC)과 Windows 소켓 깨우기 누락이 실제로 일어났다 | E5, M3 |
+
+## 13. 알려진 한계
+
+- 새 폴더의 첫 Paper 기동이 25초를 넘으면 첫 접속이 끊긴다(다시 접속하면 된다).
+- tailnet 인증 키와 GitHub 토큰의 보관 방식(월드 repo, 설정 파일 평문)은 아직 단순하다.
+- tailnet으로 들어온 플레이어는 Paper에 127.0.0.1로 보인다(IP 차단 기능은 쓸 수 없다).
+- 실제 원격 친구 환경과 online mode의 진짜 클라이언트로는 아직 확인하지 않았다(VM과 offline mode 봇으로 확인).
