@@ -54,7 +54,10 @@ public final class Node implements AutoCloseable {
     private final Git git;
     private final HostLock lock;
     private final Path dir;
-    private final Path jar;
+    private final Path cacheDir;
+    /** 지금 준비해 둔 Paper. 월드가 정한 빌드가 바뀌면 호스트가 될 때 바꾼다(route 안에서만 바뀜). */
+    private PaperBuild build;
+    private Path jar;
     private final int listenPort;
     private final int paperPort;
     private final int handoffPort;
@@ -75,11 +78,13 @@ public final class Node implements AutoCloseable {
     private volatile HostSession session;
     private volatile LockState lastAnnounced;
 
-    private Node(Git git, HostLock lock, Config config, Path jar, Optional<NetworkConfig> network, InstantSource clock,
-                 Consumer<String> log, PrintStream console) {
+    private Node(Git git, HostLock lock, Config config, PaperBuild build, Path jar, Optional<NetworkConfig> network,
+                 InstantSource clock, Consumer<String> log, PrintStream console) {
         this.git = git;
         this.lock = lock;
         this.dir = config.dir();
+        this.cacheDir = config.cacheDir();
+        this.build = build;
         this.jar = jar;
         this.listenPort = config.listenPort();
         this.paperPort = config.paperPort();
@@ -121,7 +126,7 @@ public final class Node implements AutoCloseable {
             InstantSource clock = InstantSource.system();
             Timing t = config.timing();
             HostLock lock = new HostLock(git, config.nodeName(), clock, t.ttl(), t.margin(), config.credentials());
-            return new Node(git, lock, config, jar, NetworkConfig.read(config.dir()), clock, log, console);
+            return new Node(git, lock, config, build, jar, NetworkConfig.read(config.dir()), clock, log, console);
         } catch (Exception e) {
             git.close();
             throw e;
@@ -192,11 +197,34 @@ public final class Node implements AutoCloseable {
                 return parse(acquisition.lock().address());
             }
             log.accept("이 PC가 호스트가 됐다(epoch " + acquisition.lock().epoch() + "). Paper를 시작한다.");
+            preparePaperForWorld();
             session = new HostSession(lock, dir, jar, paperPort, handoffPort, node, timing, clock, log, console);
             session.start();
             return awaitLocalPaper();
         } catch (org.eclipse.jgit.api.errors.GitAPIException e) {
             throw new IOException("원격 저장소를 확인하지 못했다", e);
+        }
+    }
+
+    /**
+     * 락을 잡아 받은 최신 월드가 정한 Paper를 준비한다. 노드가 켜져 있는 동안 누가 upgrade-paper로 버전을 올렸을 수 있고,
+     * 옛 Paper로 새 버전에서 열린 월드를 열면 월드가 망가질 수 있다. 준비하지 못하면 락을 돌려준다.
+     */
+    private void preparePaperForWorld() throws IOException, InterruptedException {
+        try {
+            PaperBuild current = WorldTemplate.paperBuild(dir);
+            if (current.equals(build)) return;
+            PaperDistribution.checkSupported(current, log);
+            log.accept("월드의 버전이 바뀌었다: 마인크래프트 " + current.version() + "(Paper " + current + ").");
+            jar = PaperDistribution.official().ensureDownloaded(cacheDir, current);
+            build = current;
+        } catch (IOException | InterruptedException | RuntimeException e) {
+            try {
+                lock.releaseWithoutWorld();
+            } catch (org.eclipse.jgit.api.errors.GitAPIException | IOException releaseFailure) {
+                e.addSuppressed(releaseFailure);
+            }
+            throw e;
         }
     }
 
