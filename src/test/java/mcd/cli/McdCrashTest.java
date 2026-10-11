@@ -53,7 +53,7 @@ class McdCrashTest {
             a2.await(0, "[mcd] 이 PC가 호스트가 됐다(epoch 2)", Duration.ofMinutes(1));
             a2.await(0, "[mcd] 다른 사람은", Duration.ofMinutes(4));
             try (Bot alice = Bot.join("alice", 25621)) {
-                assertEquals("diamond:7", alice.inventory(), "Paper가 종료하며 저장한 플레이 기록이 이어져야 한다");
+                assertEquals("diamond:7", alice.awaitInventory("diamond:7"), "Paper가 종료하며 저장한 플레이 기록이 이어져야 한다");
                 alice.quit();
             }
             int mark = a2.mark();

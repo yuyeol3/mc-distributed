@@ -36,6 +36,7 @@ public final class WorldTemplate {
         Files.writeString(dir.resolve("server.properties"), """
                 online-mode=%s
                 region-file-compression=deflate
+                accepts-transfers=true
                 """.formatted(onlineMode));
         // Paper의 자동 저장은 save-off 중에도 level.dat과 data/*.dat을 쓴다(실험 E3). 스냅샷 도중 파일이 바뀌지 않도록
         // 자동 저장을 끄고, 저장은 mcd의 주기 스냅샷(save-all flush)이 맡는다. Paper가 나머지 기본값을 채워 넣는다.

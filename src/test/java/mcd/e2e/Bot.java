@@ -49,6 +49,23 @@ public final class Bot implements AutoCloseable {
         return await("INVENTORY ").substring("INVENTORY ".length()).trim();
     }
 
+    /** 아이템 지급 등은 서버 로그보다 늦게 도착할 수 있으므로, 인벤토리가 expected가 될 때까지 최대 10초 기다린다. */
+    public String awaitInventory(String expected) throws IOException, TimeoutException, InterruptedException {
+        String actual = inventory();
+        for (int i = 0; i < 20 && !actual.equals(expected); i++) {
+            Thread.sleep(500);
+            actual = inventory();
+        }
+        return actual;
+    }
+
+    /** 서버가 보낸 transfer를 따라 다른 주소로 다시 접속해 스폰될 때까지 기다리고, 옮겨 간 주소를 돌려준다. */
+    public String awaitTransfer() throws TimeoutException, InterruptedException {
+        String target = await("TRANSFER ").substring("TRANSFER ".length()).trim();
+        await("SPAWNED");
+        return target;
+    }
+
     public void quit() throws IOException, InterruptedException {
         send("quit");
         process.waitFor(10, TimeUnit.SECONDS);

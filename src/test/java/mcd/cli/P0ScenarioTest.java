@@ -54,7 +54,7 @@ class P0ScenarioTest {
             try (Bot alice = Bot.join("alice", 25611)) {
                 a.sendAndAwait("give alice minecraft:diamond 5", "Gave 5");
                 a.sendAndAwait("execute at alice run setblock ~ ~5 ~ minecraft:gold_block", "Changed the block");
-                assertEquals("diamond:5", alice.inventory());
+                assertEquals("diamond:5", alice.awaitInventory("diamond:5"));
                 alice.quit();
             }
             int mark = a.mark();
@@ -67,7 +67,7 @@ class P0ScenarioTest {
         McdNode b = McdNode.play("B", remote, dirB, 25612, TTL_SECONDS);
         b.await(0, HOSTING, HOST_START);
         Bot alice = Bot.join("alice", 25612);
-        assertEquals("diamond:5", alice.inventory());
+        assertEquals("diamond:5", alice.awaitInventory("diamond:5"));
         b.sendAndAwait("execute at alice if block ~ ~5 ~ minecraft:gold_block", "Test passed");
 
         // 3. B가 호스트일 때 A를 실행하면 서버를 띄우지 않고 B의 주소를 안내하고, 같이 플레이할 수 있다.

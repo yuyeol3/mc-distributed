@@ -33,19 +33,14 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 | 3. E3: 플레이 중 스냅샷 | Paper 자동 저장은 save-off 중에도 레벨 데이터를 씀 → 끔. 저장을 멈춘 동안 로컬 커밋만, push는 그 뒤 | `experiments/E3-results.md` |
 | 4. MVP(M1) | `mcd init/play`, P0 시나리오 5개 E2E 통과. mcd가 죽으면 Paper도 종료(에이전트) | `P0ScenarioTest`, `McdCrashTest` |
 | 5. E1′: 커밋 시간 원인 | JGit `add "."`이 바뀌지 않은 파일까지 다시 압축하던 것이 원인. 바뀐 파일만 stage해서 9.7초 → 1초 안팎(검증용 세션으로 확인). 저장 형식 변환은 불필요 | `experiments/E1-prime-results.md` |
+| 6. E6: 중계와 transfer | 바이트 중계를 거쳐도 플레이 정상, `transfer localhost <중계 포트>`로 새 호스트로 이동 확인. Mineflayer는 transfer를 처리하지 않아 봇에 직접 구현. online mode 확인은 사용자에게 남김 | `experiments/E6-results.md` |
 
 ## 남은 단계 (이 순서로 진행)
-
-### 6. E6: 로컬 중계와 `/transfer` 확인
-- Paper 26.1.2 콘솔에서 `transfer <호스트> <포트> <대상>`이 동작하는지(`accepts-transfers=true` 필요)
-- 바이트를 그대로 넘기는 TCP 중계를 거쳐도 접속, 플레이, 서버 목록 응답이 정상인지(offline mode는 봇, online mode는 진짜 클라이언트로 사용자가 한 번 확인)
-- Mineflayer 봇이 transfer를 따라가는지. 안 되면 E2E에서는 봇이 재접속하게 한다.
 
 ### 7. M2-a: 로컬 중계와 접속 시 호스트 되기
 - mcd가 각 PC에서 `localhost:25565`를 열고, 연결이 들어오면 락 상태를 새로 확인해서 현재 호스트로 바이트를 중계한다. 사용자의 서버 주소는 항상 `localhost:25565`다.
 - 호스트가 없으면 이 PC가 호스트가 되고 Paper가 준비되면 연결을 이어준다("접속하려는 사람이 서버가 됨"). 기동하는 동안 클라이언트는 접속 중 화면에서 기다린다.
 - 호스트 PC의 Paper는 다른 포트(예: 25566)를 쓰고, 호스트 자신도 자기 중계로 접속한다.
-- `server.properties` 템플릿에 `accepts-transfers=true`를 추가한다.
 - 완료 기준: 봇이 `localhost:25565`에만 접속해서 P0 시나리오 1~3을 통과
 
 ### 8. M2-b: 패키징, GUI, 첫 실행 마법사
@@ -89,6 +84,6 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 
 ## 남은 불확실성
 
-- 중계를 거친 online mode 동작, transfer와 봇 호환성(6단계)
+- 중계를 거친 online mode 동작(사용자가 진짜 클라이언트로 한 번 확인)
 - VM 기반 검증이 실제 원격 환경을 얼마나 대신하는지(9단계)
 - 이관 중 읽기 전용 구간이 정말 새는 곳 없이 막히는지(10단계)
