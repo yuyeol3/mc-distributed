@@ -37,8 +37,11 @@ import java.util.function.Consumer;
  */
 public final class Node implements AutoCloseable {
 
-    /** 마인크래프트 클라이언트의 읽기 제한(약 30초)보다 짧게 기다린다. 넘으면 연결을 닫고 다시 접속하게 한다. */
-    private static final Duration ROUTE_WAIT = Duration.ofSeconds(25);
+    /**
+     * 이 PC의 Paper가 기동하기를 기다리는 시간. 그동안 중계가 클라이언트를 붙잡아 두므로(Relay의 Hold) 새 폴더의
+     * 첫 기동(Mojang jar 받기, 패치)도 기다릴 수 있다.
+     */
+    private static final Duration ROUTE_WAIT = Duration.ofMinutes(3);
 
     /** 노드 하나를 띄우는 데 필요한 값. CLI와 GUI가 같은 것을 채운다. */
     /**
@@ -70,7 +73,7 @@ public final class Node implements AutoCloseable {
     private Tailnet tailnet;
     private Relay relay;
     private volatile HostSession session;
-    private LockState lastAnnounced;
+    private volatile LockState lastAnnounced;
 
     private Node(Git git, HostLock lock, Config config, Path jar, Optional<NetworkConfig> network, InstantSource clock,
                  Consumer<String> log, PrintStream console) {
@@ -134,7 +137,17 @@ public final class Node implements AutoCloseable {
             remote = tailnet.proxy();
             log.accept("tailnet 주소는 " + address + "이다.");
         }
-        relay = Relay.start(listenPort, this::route, remote);
+        relay = Relay.start(listenPort, new Relay.Router() {
+            @Override
+            public InetSocketAddress route() throws IOException, InterruptedException {
+                return Node.this.route();
+            }
+
+            @Override
+            public InetSocketAddress currentHost() {
+                return Node.this.currentHost();
+            }
+        }, remote);
         log.accept("준비됐다. 마인크래프트에서 localhost:" + relay.port() + "로 접속하면 된다.");
         Thread.ofPlatform().name("node-observer").start(this::observeLoop);
     }
@@ -184,6 +197,26 @@ public final class Node implements AutoCloseable {
             return awaitLocalPaper();
         } catch (org.eclipse.jgit.api.errors.GitAPIException e) {
             throw new IOException("원격 저장소를 확인하지 못했다", e);
+        }
+    }
+
+    /**
+     * 서버 목록 확인용 현재 호스트. 서버 목록은 자주 확인하므로 git을 보지 않고 관찰해 둔 락 상태를 쓴다.
+     * 호스트를 새로 띄우지 않으며, 지금 접속할 수 있는 호스트가 없으면 null.
+     */
+    private InetSocketAddress currentHost() {
+        HostSession current = session;
+        if (current != null && current.isRunning()) {
+            return current.isReady() ? new InetSocketAddress(InetAddress.getLoopbackAddress(), paperPort) : null;
+        }
+        LockState seen = lastAnnounced;
+        if (seen == null || seen.state() != LockState.State.HOSTING || seen.owner().equals(node)) {
+            return null;
+        }
+        try {
+            return parse(seen.address());
+        } catch (IOException e) {
+            return null;
         }
     }
 

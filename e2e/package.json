@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "minecraft-protocol": "1.68.0",
     "mineflayer": "4.39.0"
   }
 }

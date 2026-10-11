@@ -63,6 +63,10 @@ final class HostSession {
         return paper.awaitReady(timeout);
     }
 
+    boolean isReady() {
+        return paper.isReady();
+    }
+
     boolean isRunning() {
         return ended.getCount() > 0;
     }

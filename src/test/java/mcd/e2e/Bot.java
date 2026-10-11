@@ -35,12 +35,17 @@ public final class Bot implements AutoCloseable {
 
     /** 접속해서 스폰될 때까지 기다린다. 작업 디렉터리는 프로젝트 루트라고 가정한다. */
     public static Bot join(String username, int port) throws IOException, TimeoutException, InterruptedException {
+        return join(username, port, TIMEOUT);
+    }
+
+    /** spawnTimeout은 서버가 막 기동하는 경우처럼 접속이 오래 걸릴 때 늘린다. */
+    public static Bot join(String username, int port, Duration spawnTimeout) throws IOException, TimeoutException, InterruptedException {
         Process p = new ProcessBuilder("node", "e2e/bot.js", "localhost", Integer.toString(port), username)
                 .redirectErrorStream(true)
                 .start();
         Bot bot = new Bot(p);
         try {
-            bot.await("SPAWNED");
+            bot.await("SPAWNED", spawnTimeout);
         } catch (TimeoutException | IllegalStateException e) {
             bot.close();
             throw e;
@@ -87,6 +92,14 @@ public final class Bot implements AutoCloseable {
         return target;
     }
 
+    /** 서버 목록 확인(ping)을 한 번 보내고 응답 JSON(description, version, players)을 돌려준다. */
+    public static String ping(int port) throws IOException, InterruptedException {
+        Process p = new ProcessBuilder("node", "e2e/ping.js", "localhost", Integer.toString(port)).redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        p.waitFor(30, TimeUnit.SECONDS);
+        return out;
+    }
+
     public void quit() throws IOException, InterruptedException {
         send("quit");
         process.waitFor(10, TimeUnit.SECONDS);
@@ -103,7 +116,11 @@ public final class Bot implements AutoCloseable {
     }
 
     private String await(String prefix) throws TimeoutException, InterruptedException {
-        long deadline = System.nanoTime() + TIMEOUT.toNanos();
+        return await(prefix, TIMEOUT);
+    }
+
+    private String await(String prefix, Duration timeout) throws TimeoutException, InterruptedException {
+        long deadline = System.nanoTime() + timeout.toNanos();
         while (true) {
             String line = lines.poll(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
             if (line == null) throw new TimeoutException("봇 출력에서 '" + prefix + "'를 찾지 못했다");
