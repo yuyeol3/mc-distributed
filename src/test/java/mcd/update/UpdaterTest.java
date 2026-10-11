@@ -116,6 +116,9 @@ class UpdaterTest {
 
         Path newApp = tmp.resolve("staged").resolve("mcd");
         writeApp(newApp, "new");
+        // 크기와 시각이 같고 내용만 다른 파일도 바뀌어야 한다("old"와 "new"는 길이가 같다).
+        var sameTime = Files.getLastModifiedTime(install.resolve("app").resolve("version.txt"));
+        Files.setLastModifiedTime(newApp.resolve("app").resolve("version.txt"), sameTime);
         Files.writeString(newApp.resolve("restart.cmd"), "@echo restarted> \"%~dp0restarted.txt\"\r\n");
 
         new Updater(url(), tmp.resolve("work")).launchReplacer(newApp, install, Optional.of(install.resolve("restart.cmd")));

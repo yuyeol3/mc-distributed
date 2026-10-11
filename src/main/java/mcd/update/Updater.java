@@ -122,6 +122,8 @@ public final class Updater {
     /**
      * 그 폴더에서 실행된 프로세스가 모두 끝나기를 기다린 뒤(최대 10분) robocopy로 새 파일을 덮어쓴다. 사용자가 같은
      * 폴더에 둔 다른 파일을 지우지 않도록 /MIR이 아니라 /E로 복사한다(옛 jar가 남아도 mcd.cfg가 정확한 목록을 쓴다).
+     * 배포 zip은 파일 시각이 고정돼 있어서, 크기와 시각이 같고 내용만 다른 파일(예: 버전 정보만 바뀐 실행 파일)을
+     * robocopy가 같은 파일로 보고 건너뛴다. /IS /IT /IM으로 항상 덮어쓴다(v0.1.0 → v0.2.0 수동 교체에서 실제로 겪음).
      */
     static String replacerScript(Path newApp, Path installDir, Optional<Path> restart, Path log) {
         String install = quote(installDir.toString());
@@ -136,7 +138,7 @@ public final class Updater {
                     Start-Sleep -Milliseconds 500
                 }
                 Start-Sleep -Seconds 1
-                & robocopy %s %s /E /R:10 /W:1 /NP /NFL /NDL | Out-File -FilePath $log -Append -Encoding utf8
+                & robocopy %s %s /E /IS /IT /IM /R:10 /W:1 /NP /NFL /NDL | Out-File -FilePath $log -Append -Encoding utf8
                 $code = $LASTEXITCODE
                 "robocopy 종료 코드 $code" | Out-File -FilePath $log -Append -Encoding utf8
                 if ($code -lt 8) {
