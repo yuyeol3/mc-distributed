@@ -1,58 +1,144 @@
 # mcd
 
-상시 서버 없이 친구들이 하나의 마인크래프트 월드를 공유한다. 플레이하려는 사람의 PC가 그때그때 Paper 서버가 되고, 월드는 git 원격 저장소(GitHub private repo 등)에 버전으로 보관된다.
+**상시 서버 없이 친구들과 하나의 마인크래프트 월드를 공유하는 프로그램.**
 
-- 동작 방식과 설계 근거(다이어그램 포함): [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- 진행 상황과 남은 과제: [docs/PLAN.md](docs/PLAN.md)
+서버 비용을 내거나 누군가 서버를 계속 켜 둘 필요가 없다. 플레이하려는 사람의 PC가 그때그때 서버가 되고, 월드는 GitHub private repo에 버전으로 보관된다. 오늘은 내가 혼자 건축하고, 내일은 친구가 혼자 들어와도 같은 월드가 이어진다.
 
-## 배포판
+- **누가 먼저 켜든 최신 월드**: 접속하는 사람의 PC가 서버가 되고, 마지막으로 저장된 월드에서 시작한다.
+- **주소는 항상 `localhost:25565`**: 누가 호스트인지 몰라도 된다. mcd가 알아서 이어준다.
+- **호스트가 나가도 계속 플레이**: 다른 사람이 접속해 있으면 서버가 그 사람 PC로 자동으로 옮겨 간다.
+- **월드가 갈라지지 않음**: 동시에 두 명이 켜도 서버는 하나만 뜨고, 크래시가 나도 자동으로 복구된다.
+- **친구는 설치할 것이 없음**: 인터넷 너머의 친구와도 mcd 하나로 연결된다(VPN이나 포트 포워딩이 필요 없음).
 
-`./gradlew packageZip`은 Java 25 런타임을 포함한 실행 폴더를 `build/distributions/mcd-windows.zip`으로 묶는다. 사용자는 Java를 설치할 필요가 없다. 설치 파일(.exe/.msi)은 WiX Toolset이 있어야 만들 수 있어서 아직 없다.
+어떻게 동작하는지는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)(다이어그램 포함), 진행 상황은 [docs/PLAN.md](docs/PLAN.md)에 있다.
 
-- `mcd/mcd.exe`: GUI. 처음 실행하면 설정 마법사(이름, GitHub 토큰, 새 월드 만들기 또는 친구의 월드 참가, EULA 동의)가 뜨고, 그다음 창에서 노드가 돈다. 창을 닫으면 저장하고 락을 반납한 뒤 끝난다. 설정은 `~/.mcd/settings.properties`, 월드는 `~/.mcd/worlds/<repo 이름>`에 둔다.
-- `mcd/mcd-cli.exe`: 아래 CLI와 같다.
+## 준비물
 
-## 사용법 (MVP, CLI)
+| 무엇 | 누가 | 비고 |
+|---|---|---|
+| Windows 10/11 PC | 모두 | 배포판은 Java 런타임을 포함하므로 Java를 설치하지 않아도 된다 |
+| 마인크래프트 Java Edition **26.1.x** | 모두 | 서버가 Paper 26.1.2로 고정돼 있어서 26.1, 26.1.1, 26.1.2 클라이언트만 접속된다(26.2는 안 됨). 정품 계정이 필요하다 |
+| GitHub 계정과 토큰 | 모두 | 월드를 보관하는 곳이다. **메인 계정과 따로 만든 계정**을 권한다(아래 참고) |
+| Tailscale 계정 | 월드 주인만 | 인터넷 너머의 친구와 할 때만 필요하다. 친구는 필요 없다 |
 
-개발 중에는 `./gradlew installDist`로 만든 스크립트를 쓴다. 이 스크립트는 `JAVA_HOME`의 Java를 쓰므로 `JAVA_HOME`이 Java 25를 가리켜야 한다. 배포판의 `mcd.exe`는 같은 인자를 받는다.
+**GitHub 토큰 만들기**: GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token. `repo` 권한을 체크한다. 월드 주인은 이 토큰으로 private repo를 만들고, 친구는 초대받은 repo에 접근한다.
+
+**Tailscale 인증 키 만들기**(월드 주인): [Tailscale 관리 화면](https://login.tailscale.com/admin/settings/keys) → Settings → Keys → Generate auth key. **Reusable**을 켜서 만든다. 이 키는 월드 repo에 저장돼 친구들에게 자동으로 전달되므로, 친구들은 Tailscale에 가입하지 않는다.
+
+## 빠른 시작
+
+### 월드 주인
+
+1. `mcd-windows.zip`을 풀고 `mcd/mcd.exe`를 실행한다.
+2. 처음 설정 창에서 다음을 넣는다.
+   - **내 이름**: 다른 사람에게 보일 이름
+   - **GitHub 토큰**
+   - **새 월드 만들기**를 고르고 repo 이름을 정한다(GitHub에 private repo가 만들어진다).
+   - **tailnet 인증 키**: 인터넷 너머의 친구와 할 거라면 Tailscale 인증 키를 넣는다. 같은 집에서만 할 거면 비워 둔다.
+   - **Minecraft EULA 동의**에 체크한다.
+3. 설정을 마치면 친구 초대 주소가 나온다. GitHub repo의 Settings → Collaborators에서 친구를 초대한다.
+4. 마인크래프트 → 멀티플레이 → 서버 추가 → 주소 **`localhost:25565`** 로 접속한다.
+
+### 친구
+
+1. 월드 주인의 GitHub 초대를 수락한다.
+2. `mcd/mcd.exe`를 실행하고 설정 창에서 **친구의 월드에 참가**를 고른 뒤, 월드 주인의 repo 주소(`https://github.com/<계정>/<repo>.git`)를 넣는다. tailnet 인증 키는 비워 둔다(월드에 이미 들어 있다).
+3. 마인크래프트에서 **`localhost:25565`** 로 접속한다.
+
+### 플레이할 때 일어나는 일
+
+- **아무도 없을 때 접속하면** 내 PC가 서버가 된다. mcd 창에 "이 PC가 호스트가 됐다"가 뜨고, 10~20초 뒤 접속된다. **맨 처음 한 번은** 서버 파일을 준비하느라 더 오래 걸려서 "시간 초과"로 끊길 수 있다. 그때는 다시 접속하면 된다.
+- **누가 이미 플레이 중이면** 그 사람의 서버로 이어진다. mcd 창에 "지금 호스트는 OOO이다"가 뜬다.
+- **호스트가 mcd를 끄면** 남은 사람들은 잠깐 로딩 화면을 본 뒤 자동으로 다른 사람의 PC로 옮겨 간다.
+- **모두 나가면** 5분 뒤 서버가 스스로 월드를 GitHub에 올리고 꺼진다.
+- **플레이 중에도** 10분마다 월드가 GitHub에 올라간다.
+- **mcd 창을 닫으면** 월드를 저장하고 올린 뒤 끝난다. 그냥 닫으면 된다.
+
+## 문제 해결
+
+| 증상 | 원인과 해결 |
+|---|---|
+| 첫 접속이 "시간 초과"로 끊김 | 그 PC에서 처음 서버를 띄울 때는 준비가 25초를 넘을 수 있다. 다시 접속하면 된다 |
+| "지금 호스트는 OOO"인데 접속이 안 됨 | 그 사람의 PC가 갑자기 꺼졌을 수 있다. 최대 10분 뒤 자동으로 다른 PC가 이어받으니, 그 뒤에 다시 접속한다 |
+| 접속 화면에서 버전이 맞지 않다고 나옴 | 마인크래프트 버전을 26.1.x로 바꾼다 |
+| "토큰을 확인하지 못했다" | 토큰이 틀렸거나 `repo` 권한이 없다. 토큰을 다시 만든다 |
+| "원격에 올리지 못했다" (새 월드) | 같은 이름의 repo가 이미 있거나 비어 있지 않다. 다른 이름을 쓴다 |
+| 설정을 처음부터 다시 하고 싶음 | `%USERPROFILE%\.mcd\settings.properties`를 지우고 다시 실행한다 |
+| GitHub repo에 `recovery/...` 브랜치가 생김 | PC가 갑자기 꺼진 사이 다른 사람이 이어서 플레이해서, 꺼졌던 PC의 마지막 몇 분이 따로 보관된 것이다. 메인 월드는 갈라지지 않았다. 필요 없으면 지워도 된다 |
+| Windows 방화벽 허용 창이 뜸 | mcd와 함께 도는 Java(Paper)나 `mcd-net`이 네트워크를 쓰려는 것이다. 허용한다 |
+
+## CLI 사용법
+
+배포판의 `mcd/mcd-cli.exe`(또는 직접 빌드한 `build/install/mcd/bin/mcd`)로 GUI 없이 쓸 수 있다. GitHub 토큰은 환경 변수 `MCD_GITHUB_TOKEN`으로 넘긴다.
 
 ```sh
-./gradlew installDist
-# 새 월드 만들기: 빈 원격 repo가 필요하다
-build/install/mcd/bin/mcd init --remote https://github.com/<계정>/<repo>.git --dir worlds/survival
+# 새 월드 만들기 (원격 repo는 비어 있어야 한다)
+mcd-cli init --remote https://github.com/<계정>/<repo>.git --dir worlds/survival --tailnet-auth-key <키>
+
 # 노드 띄우기: 이후 마인크래프트에서 localhost:25565로 접속한다
-build/install/mcd/bin/mcd play --remote https://github.com/<계정>/<repo>.git --dir worlds/survival --node <내 이름> --accept-eula
+mcd-cli play --remote https://github.com/<계정>/<repo>.git --dir worlds/survival --node <내 이름> --accept-eula
 ```
 
-- GitHub 토큰은 환경 변수 `MCD_GITHUB_TOKEN`으로 넘긴다.
-- **마인크래프트의 서버 주소는 항상 `localhost:25565`다.** 접속하면 mcd가 현재 호스트로 이어주고, 호스트가 없으면 이 PC가 서버가 된다. 아무도 접속하지 않은 채 5분이 지나면 서버는 스스로 월드를 올리고 내려간다.
-- 호스트일 때 콘솔 입력은 Paper 콘솔로 넘어간다. `stop`을 입력하거나 Ctrl+C를 누르면 저장하고 락을 반납한 뒤 끝난다.
-- **인터넷 너머의 친구와 하려면** 월드를 만들 때 tailnet 인증 키를 넣는다(`init --tailnet-auth-key`, GUI 마법사의 "tailnet 인증 키"). 그러면 모든 노드가 mcd에 내장된 tailnet 클라이언트(tsnet)로 서로 접속한다. 친구는 Tailscale을 설치하거나 로그인하지 않는다. 월드 주인만 Tailscale 관리 화면에서 재사용 가능한 키를 한 번 발급한다(Headscale 같은 다른 조정 서버도 `--tailnet-control-url`로 쓸 수 있다).
-- tailnet 없이 같은 네트워크에서만 쓸 때는 `--address <내 주소>:25566`으로 다른 PC가 접속할 주소를 넘긴다.
-- `--accept-eula`는 [Minecraft EULA](https://aka.ms/MinecraftEULA)에 동의한다는 뜻이다.
+`play` 중 콘솔 입력은 내 PC가 호스트일 때 Paper 콘솔로 넘어간다(예: `op <이름>`, `difficulty hard`). `stop`이나 Ctrl+C를 누르면 저장하고 끝난다.
 
-## 동작 방식
+| 명령 | 옵션 | 설명 |
+|---|---|---|
+| `init` | `--remote <git URL>` | 비어 있는 원격 repo |
+| | `--dir <폴더>` | 월드를 둘 새 폴더 |
+| | `--tailnet-auth-key <키>` | 인터넷 너머 친구와 하려면. 월드에 기록돼 모두에게 전달된다 |
+| | `--tailnet-control-url <주소>` | 조정 서버. 비우면 Tailscale. Headscale을 직접 운영하면 그 주소 |
+| | `--offline` | online mode를 끈다(테스트용, 정품 인증 없음) |
+| `play` | `--remote`, `--dir`, `--node <이름>` | 필수 |
+| | `--accept-eula` | [Minecraft EULA](https://aka.ms/MinecraftEULA)에 동의 |
+| | `--listen <포트>` | 마인크래프트가 접속할 이 PC의 포트(기본 25565) |
+| | `--port <포트>` | 이 PC가 호스트일 때 Paper 포트(기본 25566) |
+| | `--address <호스트:포트>` | tailnet 없이 같은 네트워크에서 쓸 때 다른 PC가 내 Paper에 접속할 주소 |
+| | `--cache <폴더>` | Paper jar를 받아 둘 곳(기본 `~/.mcd/cache`) |
+| | `--ttl-seconds`, `--handoff-port` | 테스트용 |
 
-- **tailnet**: 월드 repo에 `mcd-network.properties`가 있으면 mcd가 `mcd-net`(Go, tsnet)을 띄워 tailnet에 붙는다. 다른 PC로 나가는 중계 연결은 `mcd-net`의 SOCKS5로, 들어오는 연결은 tailnet의 Paper 포트에서 로컬 Paper로 넘어온다. 락에는 tailnet 주소가 적힌다(실험 E5). 노드 키는 월드 폴더 밖에 둔다.
-- **중계**: mcd는 `localhost:25565`에서 마인크래프트 연결을 받아 현재 호스트의 Paper로 바이트 그대로 넘긴다(`Relay`). 연결마다 락을 확인하고, 호스트가 없으면 락을 잡고 Paper를 띄운 뒤 이어준다. 클라이언트의 읽기 제한 때문에 Paper 기동을 25초까지만 기다리고, 넘으면 연결을 닫는다(다시 접속하면 된다).
-- **락**: 월드 repo의 `main` 안에 `mcd-lock.properties`가 있다. 모든 상태 변경은 원격 `main` 위에 커밋 하나를 쌓고 force 없이 push하는 것이고, 동시에 push하면 하나만 성공한다(실험 E2). 락을 잃은 호스트의 push는 git이 거절한다.
-- **호스트 이관**: 다른 사람이 접속해 있는데 호스트가 나가면, 마지막 스냅샷과 함께 락을 반납하고 곧바로 모두를 각자 PC의 `localhost:25565`로 transfer한다. 각자의 mcd 중계가 빈 락을 겨루고 한 노드만 이겨서 Paper를 띄우며, 나머지 중계는 그 Paper가 열릴 때까지 다시 시도한다. 플레이어는 잠깐 접속 중 화면을 본 뒤 같은 월드로 들어간다.
-- **lease**: 호스트는 2분마다 heartbeat를, 10분마다 월드 스냅샷을 push한다. 다른 노드는 같은 `main`을 자기 시계로 10분 동안 관찰하면 호스트가 죽었다고 보고 이어받는다. 호스트는 8분 동안 갱신하지 못하면 스스로 서버를 내린다.
-- **스냅샷**: `save-off` → `save-all flush` → 로컬 커밋 → `save-on` → push. Paper 자동 저장은 `save-off` 중에도 레벨 데이터를 써서 끄고, 저장은 이 스냅샷이 맡는다(실험 E3).
-- **크래시 복구**: 다시 실행했을 때 push하지 못한 변경이 남아 있으면, 그동안 아무도 락을 가져가지 않았을 때만 `main`에 이어서 올린다. 그 밖의 경우는 `recovery/<노드>-<epoch>-<커밋>` 브랜치에만 올려서 사람이 나중에 살펴볼 수 있게 한다.
-- Paper 빌드는 `26.1.2-74`로 고정하고 월드 repo에 기록한다(`mcd-paper-build.txt`). 26.1+ 월드는 다운그레이드할 수 없어서 모든 호스트가 같은 빌드를 써야 한다.
+## 파일 위치
 
-## 테스트
+| 위치 | 내용 |
+|---|---|
+| `~/.mcd/settings.properties` | GUI 설정(이름, repo 주소, 토큰). 토큰이 평문으로 저장된다 |
+| `~/.mcd/worlds/<repo 이름>/` | 월드의 로컬 사본이자 Paper 서버 폴더(git 작업 트리) |
+| `~/.mcd/cache/` | Paper jar(첫 실행 때 받는다) |
+| `~/.mcd/tailnet/` | tailnet 노드 키. 월드 폴더 밖에 둬서 GitHub에 올라가지 않는다 |
 
-- `./gradlew test`: 소유권 프로토콜(로컬 bare repo + 가짜 시계), push CAS 동작
-- `./gradlew paperTest`: 실제 Paper와 Mineflayer 봇으로 E3 실험과 P0 시나리오 5개. `nodes/_cache/paper-26.1.2-74.jar`와 `e2e/`의 `npm install`이 필요하다.
-- 실험 결과는 `experiments/`에 있다.
+## 직접 빌드하기
+
+필요한 것: JDK 25, Go(`mcd-net` 빌드), Node.js(E2E 테스트 봇).
+
+```sh
+./gradlew installDist      # build/install/mcd (JAVA_HOME이 Java 25여야 실행된다)
+./gradlew packageZip       # build/distributions/mcd-windows.zip (Java 런타임 포함)
+./gradlew test             # 단위 테스트: 소유권 프로토콜, 중계, 설정, GitHub 클라이언트
+./gradlew paperTest        # 실제 Paper + Mineflayer 봇 E2E (느림)
+```
+
+`paperTest`를 돌리려면 `nodes/_cache/paper-26.1.2-74.jar`가 있어야 하고 `e2e/`에서 `npm install`을 해 둬야 한다. tailnet 시나리오는 조정 서버가 있을 때만 돈다(`MCD_TEST_CONTROL_URL`, `MCD_TEST_AUTH_KEY`, 개발 중에는 Headscale을 썼다). 테스트 구성은 [docs/ARCHITECTURE.md의 테스트 전략](docs/ARCHITECTURE.md#11-테스트-전략)을 참고한다.
+
+```text
+src/main/java/mcd/
+  cli/      CLI (init, play)
+  gui/      GUI와 첫 실행 마법사
+  node/     한 PC의 노드: 중계, 라우팅, 호스트 기간 관리, 이관
+  lock/     git push를 락으로 쓰는 소유권 프로토콜
+  net/      로컬 중계, tailnet 보조 프로그램 연동
+  server/   Paper 프로세스 제어, 고정 빌드 다운로드
+  world/    월드 repo 생성과 초기 파일
+net-helper/ tailnet 보조 프로그램 mcd-net (Go, tsnet)
+e2e/        테스트용 헤드리스 플레이어 (Mineflayer)
+experiments/ 실험 기록 (E1′ ~ E6)
+```
 
 ## 알려진 한계
 
-- tailnet 인증 키는 월드 repo에 들어가므로 collaborator에게 보인다. 권한을 좁힌 키를 쓴다.
-- 새 폴더의 첫 Paper 기동은 25초를 넘을 수 있어서, 그때는 첫 접속이 끊기고 다시 접속해야 한다.
-- GitHub 토큰은 `~/.mcd/settings.properties`에 평문으로 저장된다. OS 자격 증명 저장소 연동은 나중에 한다.
-- Paper는 stdin이 닫혀도 계속 돈다. 그래서 Paper JVM에 작은 에이전트(`ParentWatchdog`)를 붙여서, mcd가 죽으면 Paper도 저장하고 종료하게 했다. 다시 실행하면 그동안 아무도 락을 가져가지 않았을 경우 그 플레이 기록이 `main`에 이어진다(`McdCrashTest`). PC 전체가 꺼지면 TTL이 지난 뒤 다른 노드가 이어받는다.
-- 호스트가 크래시로 사라지면(정상 종료가 아니면) 플레이어는 TTL이 지난 뒤 직접 다시 접속해야 한다. 정상 종료 때는 자동으로 옮겨 간다.
-- GitHub 이용 정책에는 과도한 자동 활동 금지 조항이 있다. 월드 저장용 계정이나 organization을 메인 계정과 분리하는 것을 권한다.
+- 새 PC에서 처음 서버를 띄울 때는 첫 접속이 끊길 수 있다(다시 접속하면 된다).
+- 호스트 PC가 갑자기 꺼지면, 다른 PC가 이어받기까지 최대 10분 걸린다. 그동안의 플레이(마지막 저장 이후 최대 10분)는 recovery 브랜치로 따로 보관된다.
+- 호스트를 넘길 때 나가는 PC의 플레이어도 같이 끊긴다.
+- tailnet 인증 키는 월드 repo에 들어가므로 collaborator에게 보인다. GitHub 토큰은 설정 파일에 평문으로 저장된다.
+- tailnet으로 들어온 플레이어는 서버에서 127.0.0.1로 보인다(IP 차단 기능은 쓸 수 없다).
+- 설치 파일(.msi)은 아직 없다(zip을 풀어서 쓴다).
+- 아직 실제 원격 친구 환경에서는 확인하지 않았다(같은 PC의 VM과 테스트 봇으로 확인).
+- GitHub 이용 정책에는 과도한 자동 활동 금지 조항이 있다. mcd는 push 빈도를 낮게 유지하지만, 혹시 모를 계정 제재가 메인 계정에 미치지 않도록 월드 전용 계정을 권한다.
