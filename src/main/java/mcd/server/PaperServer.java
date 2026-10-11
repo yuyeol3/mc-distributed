@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Paper 서버 프로세스를 띄우고 콘솔(stdin/stdout)로 제어한다.
@@ -21,6 +23,7 @@ public final class PaperServer implements AutoCloseable {
 
     private static final Duration COMMAND_TIMEOUT = Duration.ofSeconds(60);
     private static final String READY = "Done (";
+    private static final Pattern PLAYERS = Pattern.compile("There are (\\d+) of");
 
     private final Process process;
     private final Writer stdin;
@@ -68,11 +71,30 @@ public final class PaperServer implements AutoCloseable {
         stdin.flush();
     }
 
-    /** 명령을 보내고, 보낸 뒤에 expected를 포함한 줄이 나올 때까지 기다린다. */
-    public void commandAndAwait(String command, String expected) throws IOException, TimeoutException {
+    /** 명령을 보내고, 보낸 뒤에 expected를 포함한 줄이 나올 때까지 기다려 그 줄을 돌려준다. */
+    public String commandAndAwait(String command, String expected) throws IOException, TimeoutException {
         int from = lineCount();
         command(command);
-        awaitLine(from, expected, COMMAND_TIMEOUT);
+        return awaitLine(from, expected, COMMAND_TIMEOUT);
+    }
+
+    /** 기동이 끝날 때까지 기다린다. 시간 안에 끝나지 않거나 프로세스가 죽으면 false. */
+    public boolean awaitReady(Duration timeout) {
+        try {
+            awaitLine(0, READY, timeout);
+            return true;
+        } catch (TimeoutException e) {
+            return false;
+        }
+    }
+
+    /** 접속 중인 플레이어 수. `list` 출력("There are N of a max of M players online")에서 읽는다. */
+    public int onlinePlayers() throws IOException, TimeoutException {
+        Matcher m = PLAYERS.matcher(commandAndAwait("list", "players online"));
+        if (!m.find()) {
+            throw new IllegalStateException("list 출력을 해석하지 못했다");
+        }
+        return Integer.parseInt(m.group(1));
     }
 
     /** 자동 저장을 멈추고 모든 청크를 디스크에 쓴다. 이 상태에서 월드 파일을 커밋한다. */
@@ -119,13 +141,13 @@ public final class PaperServer implements AutoCloseable {
         }
     }
 
-    private void awaitLine(int from, String expected, Duration timeout) throws TimeoutException {
+    private String awaitLine(int from, String expected, Duration timeout) throws TimeoutException {
         long deadline = System.nanoTime() + timeout.toNanos();
         synchronized (lines) {
             int next = from;
             while (true) {
                 for (; next < lines.size(); next++) {
-                    if (lines.get(next).contains(expected)) return;
+                    if (lines.get(next).contains(expected)) return lines.get(next);
                 }
                 long remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
                 if (remaining <= 0 || !process.isAlive()) {

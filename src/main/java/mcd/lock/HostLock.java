@@ -49,6 +49,9 @@ public final class HostLock {
 
     public record Acquisition(boolean acquired, LockState lock) {}
 
+    /** 현재 락 상태와, 지금 획득을 시도하면 되는지(비어 있거나, 내 것이거나, lease가 만료됨). */
+    public record Observation(LockState lock, boolean takeable) {}
+
     private final Git git;
     private final String node;
     private final InstantSource clock;
@@ -103,6 +106,18 @@ public final class HostLock {
         }
         git.reset().setMode(ResetType.HARD).setRef(latest.name()).call();
         return new Acquisition(false, lockAt(latest));
+    }
+
+    /**
+     * 획득하지 않고 원격 락을 관찰한다. lease 만료는 같은 main을 ttl 이상 관찰해야 판정되므로, 호스트가 아닌 노드는
+     * 이것을 주기적으로 불러야 한다. 이전 실행이 남긴 변경 정리도 함께 하므로 호스트인 동안에는 부르면 안 된다.
+     */
+    public Observation peek() throws GitAPIException, IOException {
+        fetch();
+        reconcileLocalChanges();
+        ObjectId remoteHead = remoteHead();
+        LockState current = lockAt(remoteHead);
+        return new Observation(current, canTake(current, remoteHead));
     }
 
     /** 락이 살아 있음을 알리는 빈 커밋을 push한다. 작업 중인 월드 파일은 커밋하지 않는다. */

@@ -34,14 +34,9 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 | 4. MVP(M1) | `mcd init/play`, P0 시나리오 5개 E2E 통과. mcd가 죽으면 Paper도 종료(에이전트) | `P0ScenarioTest`, `McdCrashTest` |
 | 5. E1′: 커밋 시간 원인 | JGit `add "."`이 바뀌지 않은 파일까지 다시 압축하던 것이 원인. 바뀐 파일만 stage해서 9.7초 → 1초 안팎(검증용 세션으로 확인). 저장 형식 변환은 불필요 | `experiments/E1-prime-results.md` |
 | 6. E6: 중계와 transfer | 바이트 중계를 거쳐도 플레이 정상, `transfer localhost <중계 포트>`로 새 호스트로 이동 확인. Mineflayer는 transfer를 처리하지 않아 봇에 직접 구현. online mode 확인은 사용자에게 남김 | `experiments/E6-results.md` |
+| 7. M2-a: 중계와 접속 시 호스트 | `mcd play`는 localhost:25565에 중계를 열고 기다리는 노드가 됨. 연결이 오면 살아 있는 호스트로 넘기거나 이 PC가 호스트가 됨. 빈 서버는 TTL/2(기본 5분) 뒤 스스로 반납. P0 시나리오 5개를 중계 방식으로 다시 통과 | `mcd.node`, `P0ScenarioTest` |
 
 ## 남은 단계 (이 순서로 진행)
-
-### 7. M2-a: 로컬 중계와 접속 시 호스트 되기
-- mcd가 각 PC에서 `localhost:25565`를 열고, 연결이 들어오면 락 상태를 새로 확인해서 현재 호스트로 바이트를 중계한다. 사용자의 서버 주소는 항상 `localhost:25565`다.
-- 호스트가 없으면 이 PC가 호스트가 되고 Paper가 준비되면 연결을 이어준다("접속하려는 사람이 서버가 됨"). 기동하는 동안 클라이언트는 접속 중 화면에서 기다린다.
-- 호스트 PC의 Paper는 다른 포트(예: 25566)를 쓰고, 호스트 자신도 자기 중계로 접속한다.
-- 완료 기준: 봇이 `localhost:25565`에만 접속해서 P0 시나리오 1~3을 통과
 
 ### 8. M2-b: 패키징, GUI, 첫 실행 마법사
 - jpackage로 Java 25 런타임을 포함한 Windows 설치 파일(`JAVA_HOME` 문제도 해결)
@@ -78,6 +73,8 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 - 원격은 git URL일 뿐이라 GitLab이나 자체 Gitea로 옮길 수 있다.
 
 ## 열린 성능 문제 (기능 단계 이후에 다룸)
+
+- Paper 기동이 25초를 넘으면(첫 기동은 라이브러리를 풀어서 느림) 중계가 연결을 닫아 플레이어가 다시 접속해야 한다. 중계가 로그인 단계에서 "기동 중" 안내를 보내는 방법을 검토한다.
 
 - 로컬 작업 repo에 압축된 loose 객체가 쌓인다(스냅샷 20개에 340MB). 주기적인 로컬 gc가 필요하다.
 - push 전송량이 스냅샷당 15~25MB(탐험 위주 세션 기준). 건축 위주 플레이에서 문제가 되면 저장 형식(E1: A vs C′)을 검토한다.

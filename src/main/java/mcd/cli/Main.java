@@ -1,5 +1,6 @@
 package mcd.cli;
 
+import mcd.node.Timing;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 
@@ -17,8 +18,12 @@ public final class Main {
             사용법:
               mcd init --remote <git URL> --dir <폴더> [--offline]
                   빈 원격 repo에 새 월드를 만든다. --offline이면 online-mode=false(테스트용).
-              mcd play --remote <git URL> --dir <폴더> --node <이름> [--port 25565] [--address 호스트:포트] [--accept-eula]
-                  월드에 들어간다. 호스트가 없으면 이 PC가 서버가 되고, 있으면 접속 주소를 안내한다.
+              mcd play --remote <git URL> --dir <폴더> --node <이름> [--accept-eula]
+                  월드에 들어갈 준비를 하고 기다린다. 마인크래프트에서 localhost:25565로 접속하면, 호스트가 있으면
+                  그쪽으로 이어지고 없으면 이 PC가 서버가 된다. 아무도 없으면 서버는 스스로 내려간다.
+                  --listen <포트>: 마인크래프트가 접속할 이 PC의 포트(기본 25565)
+                  --port <포트>: 이 PC가 호스트일 때 Paper가 쓸 포트(기본 25566)
+                  --address <호스트:포트>: 다른 사람이 이 PC의 Paper에 접속할 주소(기본 localhost:<port>)
                   --ttl-seconds <초>: 호스트가 응답 없을 때 이어받기까지의 시간(기본 600). 테스트용.
                   --cache <폴더>: Paper jar를 받아둘 곳(기본 ~/.mcd/cache).
             GitHub 토큰은 환경 변수 MCD_GITHUB_TOKEN으로 넘긴다.
@@ -35,19 +40,20 @@ public final class Main {
         switch (args[0]) {
             case "init" -> InitCommand.run(Path.of(require(opts, "dir")), require(opts, "remote"), !opts.containsKey("offline"), credentials());
             case "play" -> {
-                int port = Integer.parseInt(opts.getOrDefault("port", "25565"));
-                new PlayCommand(
+                int paperPort = Integer.parseInt(opts.getOrDefault("port", "25566"));
+                new PlayCommand(new PlayCommand.Options(
                         require(opts, "remote"),
                         Path.of(require(opts, "dir")),
                         require(opts, "node"),
-                        port,
-                        opts.getOrDefault("address", "localhost:" + port),
+                        Integer.parseInt(opts.getOrDefault("listen", "25565")),
+                        paperPort,
+                        opts.getOrDefault("address", "localhost:" + paperPort),
                         opts.containsKey("accept-eula"),
                         opts.containsKey("cache") ? Path.of(opts.get("cache")) : Path.of(System.getProperty("user.home"), ".mcd", "cache"),
                         credentials(),
-                        PlayCommand.Timing.fromTtl(opts.containsKey("ttl-seconds")
+                        Timing.fromTtl(opts.containsKey("ttl-seconds")
                                 ? Duration.ofSeconds(Long.parseLong(opts.get("ttl-seconds")))
-                                : PlayCommand.Timing.DEFAULT_TTL)).run();
+                                : Timing.DEFAULT_TTL))).run();
             }
             default -> {
                 System.out.print(USAGE);

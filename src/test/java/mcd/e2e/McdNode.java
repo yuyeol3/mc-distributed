@@ -40,7 +40,8 @@ public final class McdNode implements AutoCloseable {
         });
     }
 
-    public static McdNode play(String name, String remote, Path dir, int port, int ttlSeconds) throws IOException {
+    /** listenPort는 봇이 접속할 중계 포트, listenPort + 1은 이 노드가 호스트일 때 Paper 포트다. */
+    public static McdNode play(String name, String remote, Path dir, int listenPort, int ttlSeconds) throws IOException {
         List<String> cmd = List.of(
                 Path.of(System.getProperty("java.home"), "bin", "java").toString(),
                 "-cp", System.getProperty("java.class.path"),
@@ -48,7 +49,8 @@ public final class McdNode implements AutoCloseable {
                 "--remote", remote,
                 "--dir", dir.toAbsolutePath().toString(),
                 "--node", name,
-                "--port", Integer.toString(port),
+                "--listen", Integer.toString(listenPort),
+                "--port", Integer.toString(listenPort + 1),
                 "--accept-eula",
                 "--cache", "nodes/_cache",
                 "--ttl-seconds", Integer.toString(ttlSeconds));
