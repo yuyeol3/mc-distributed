@@ -274,9 +274,9 @@ sequenceDiagram
 | `mcd.server` | Paper 제어 | `PaperServer`(프로세스, 콘솔 명령, 저장 제어), `PaperDistribution`(월드가 정한 빌드 다운로드, 해시 검증, 지원 범위), `PaperBuild`, `ParentWatchdog`(Java 에이전트) |
 | `mcd.world` | 월드 repo | `WorldRepository`(생성, clone), `WorldTemplate`(초기 파일), `NetworkConfig` |
 | `mcd.cli` | CLI | `Main`, `InitCommand`, `PlayCommand`, `UpgradeCommand`, `UpdateCommand` |
-| `mcd.gui` | GUI | `App`, `SetupDialog`(첫 실행 마법사), `MainWindow` |
+| `mcd.gui` | GUI | `App`, `MainWindow`(월드 고르기·추가·빼기·버전 올리기), `AccountDialog`(이름, 토큰, 서버 주소), `AddWorldDialog`(새 월드/참가) |
 | `mcd.update` | 자동 업데이트 | `Updater`(릴리스 확인, 받기, 검증, 교체 스크립트), `AppVersion`, `Json`(작은 JSON 파서) |
-| `mcd.config`, `mcd.github` | GUI 지원 | `Settings`(`~/.mcd/settings.properties`), `GitHubClient`(토큰 확인, private repo 생성) |
+| `mcd.config`, `mcd.github` | GUI 지원 | `Settings`(`~/.mcd/settings.properties`, 공통 설정과 월드 목록), `GitHubClient`(토큰 확인, private repo 생성) |
 | `net-helper/` (Go) | tailnet 보조 프로그램 | `mcd-net`: tsnet, SOCKS5, 들어오는 포워딩 |
 
 의존 방향은 `cli`/`gui` → `node` → `lock`, `net`, `server`, `world`이다. `lock`은 JGit에만 의존하고 Paper나 네트워크를 모른다.

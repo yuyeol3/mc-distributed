@@ -19,12 +19,12 @@ import java.util.function.Consumer;
  * `mcd upgrade-paper`: 월드가 쓰는 Paper 빌드를 올린다. 락을 잡은 상태에서 버전 파일을 바꿔 반납하므로, 호스트가
  * 있는 동안에는 바꿀 수 없다. 월드는 한 번 새 버전으로 열리면 되돌릴 수 없어서 다운그레이드는 거부한다.
  */
-final class UpgradeCommand {
+public final class UpgradeCommand {
 
     private UpgradeCommand() {}
 
     /** target은 "버전-빌드" 또는 버전만(그 버전의 최신 안정 빌드). 바꾼 빌드를 돌려준다. */
-    static PaperBuild run(Path dir, String remote, String node, String target, Path cacheDir, CredentialsProvider credentials,
+    public static PaperBuild run(Path dir, String remote, String node, String target, Path cacheDir, CredentialsProvider credentials,
                           PaperDistribution paper, Consumer<String> log) throws Exception {
         try (Git git = WorldRepository.openOrClone(dir, remote, credentials)) {
             Timing timing = Timing.fromTtl(Timing.DEFAULT_TTL);
