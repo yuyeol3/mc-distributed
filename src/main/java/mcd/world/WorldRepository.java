@@ -1,5 +1,6 @@
 package mcd.world;
 
+import mcd.server.PaperBuild;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.PushResult;
@@ -20,12 +21,12 @@ public final class WorldRepository {
      * network가 있으면 노드들이 그 tailnet에 붙도록 월드에 함께 기록한다.
      */
     public static void create(Path dir, String remote, boolean onlineMode, Optional<NetworkConfig> network,
-                              CredentialsProvider credentials) throws Exception {
+                              PaperBuild paperBuild, CredentialsProvider credentials) throws Exception {
         if (Files.exists(dir)) {
             throw new IllegalStateException(dir + "가 이미 있다. 새 폴더를 지정해야 한다.");
         }
         try (Git git = Git.init().setInitialBranch("main").setDirectory(dir.toFile()).call()) {
-            WorldTemplate.writeInitialFiles(dir, onlineMode);
+            WorldTemplate.writeInitialFiles(dir, onlineMode, paperBuild);
             if (network.isPresent()) network.get().write(dir);
             git.add().addFilepattern(".").call();
             git.commit().setMessage("init world").setSign(false).call();

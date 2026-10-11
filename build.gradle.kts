@@ -75,6 +75,8 @@ val paperTest by tasks.registering(Test::class) {
     }
     // 실험 세션 이름(-Dmcd.session=...)을 테스트 JVM으로 넘긴다.
     providers.systemProperty("mcd.session").orNull?.let { systemProperty("mcd.session", it) }
+    // Paper 호환성 테스트의 대상 빌드(-Dmcd.paperBuild=26.2-133).
+    providers.systemProperty("mcd.paperBuild").orNull?.let { systemProperty("mcd.paperBuild", it) }
     testLogging {
         showStandardStreams = true
     }

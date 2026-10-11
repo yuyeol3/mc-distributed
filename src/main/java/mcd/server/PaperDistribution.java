@@ -12,6 +12,7 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,14 +29,20 @@ public final class PaperDistribution {
 
     public static final String API = "https://fill.papermc.io/v3/projects/paper";
 
-    /** 새 월드가 쓰는 빌드. 이 앱으로 E2E까지 확인한 빌드다. */
-    public static final PaperBuild DEFAULT_BUILD = PaperBuild.parse("26.1.2-74");
+    /**
+     * 새 월드가 쓰는 빌드. 호환성 테스트(PaperCompatibilityTest)와 정품 클라이언트로 확인한 최신 안정 빌드다.
+     * 26.1.2는 Paper 지원이 끝나서(2026-07-26) 26.2로 올렸다.
+     */
+    public static final PaperBuild DEFAULT_BUILD = PaperBuild.parse("26.2-133");
 
     /** 호스트 이관에 쓰는 transfer와 accepts-transfers가 1.20.5부터 있다. */
     static final String MIN_VERSION = "1.20.5";
 
-    /** 콘솔 명령과 로그 문구(저장, 기동 완료, 플레이어 수)를 E2E로 확인한 버전 범위. */
-    static final String TESTED_VERSION_PREFIX = "26.1";
+    /**
+     * 콘솔 명령과 로그 문구(저장, 기동 완료, 플레이어 수, transfer)를 확인한 버전들. 26.1은 봇 E2E까지, 26.2는
+     * 호환성 테스트와 정품 클라이언트 접속으로 확인했다(테스트 봇이 26.2를 지원하지 않음).
+     */
+    static final List<String> TESTED_VERSIONS = List.of("26.1", "26.2");
 
     private static final Pattern SHA256 = Pattern.compile("\"sha256\"\\s*:\\s*\"([0-9a-f]{64})\"");
     private static final Pattern URL = Pattern.compile("\"url\"\\s*:\\s*\"([^\"]+)\"");
@@ -63,7 +70,7 @@ public final class PaperDistribution {
         if (build.compareVersion(MIN_VERSION) < 0) {
             throw new IllegalStateException("Paper " + build + "는 너무 옛 버전이다. mcd는 " + MIN_VERSION + " 이상이 필요하다(transfer).");
         }
-        if (!build.version().equals(TESTED_VERSION_PREFIX) && !build.version().startsWith(TESTED_VERSION_PREFIX + ".")) {
+        if (TESTED_VERSIONS.stream().noneMatch(v -> build.version().equals(v) || build.version().startsWith(v + "."))) {
             warn.accept("Paper " + build + "는 이 버전의 mcd로 시험하지 않은 버전이다. 문제가 생기면 mcd를 업데이트한다.");
         }
     }

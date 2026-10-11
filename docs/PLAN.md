@@ -19,9 +19,9 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 | Git | JGit | 사용자가 git을 설치하지 않아도 됨 |
 | 배포 | jpackage로 Java 25 런타임 포함 설치 파일 | Java 설치 불필요, 같은 런타임으로 Paper 실행 |
 | GraalVM native-image | 하지 않음 | Paper가 JVM을 필요로 해서 JRE를 뺄 수 없음 |
-| Paper | 월드가 빌드를 정함(새 월드는 26.1.2-74), 앱은 그 빌드를 받아 씀 | 한 월드의 호스트는 같은 빌드여야 함(다운그레이드 불가) |
+| Paper | 월드가 빌드를 정함(새 월드는 26.2-133), 앱은 그 빌드를 받아 씀 | 한 월드의 호스트는 같은 빌드여야 함(다운그레이드 불가) |
 | UI | MVP는 CLI, 배포 단계에서 Swing | JDK에 포함, 의존성 없음 |
-| 테스트 플레이어 | Mineflayer 4.39.0 봇(offline mode) | 26.1까지 지원, 자동화 가능 |
+| 테스트 플레이어 | Mineflayer 4.39.0 봇(offline mode) | 26.1까지 지원, 자동화 가능. 그 뒤 버전은 호환성 테스트와 정품 클라이언트로 확인 |
 
 ## 완료된 단계
 
@@ -41,6 +41,7 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 | 11. 서버 버전 분리 | Paper 빌드를 앱 코드가 아니라 월드(`mcd-paper-build.txt`)가 정하게 함. Paper API에서 받아 SHA-256 검증 후 버전별 캐시. 지원 범위(1.20.5 이상, Java 요구 버전, 26.1.x 밖은 경고). `mcd upgrade-paper`로 락을 잡고 버전을 올림(다운그레이드와 호스트 중 변경은 거부) | `PaperDistributionTest`, `UpgradeCommandTest` |
 | 12. 중계 첫머리 처리 | 서버 목록 확인은 호스트를 띄우지 않고 중계가 답하거나 살아 있는 호스트로 넘김. 로그인은 플러그인 질의로 붙잡아 두다가 첫머리를 다시 보내 이어줌. **정품 클라이언트로 35초 첫 기동을 끊김 없이 통과, 중계를 거친 정품 인증도 확인**. v0.1.0 릴리스 | `RelayTest`, `FirstJoinHoldTest` |
 | 13. 자동 업데이트 | 앱 버전(manifest), 배포 zip의 `.sha256`. GitHub 릴리스에서 더 새 버전을 찾아 받고 검증한 뒤, PowerShell 스크립트가 설치 폴더의 mcd가 모두 끝나면 robocopy로 바꾸고 다시 켬. 배포판 0.2.0 → 가짜 릴리스 9.9.9로 실제 교체 확인 | `UpdaterTest`, `mcd.update` |
+| 14. 새 월드 기본값 26.2 | 26.1.2 지원 종료(2026-07-26)로 새 월드를 26.2-133으로. `PaperCompatibilityTest`(봇 없이 콘솔 동작과 26.1.2 월드 업그레이드)와 정품 클라이언트 접속·플레이로 확인. 봇 E2E는 26.1.2 월드로 고정(`init --paper`) | `PaperCompatibilityTest` |
 
 ## 남은 단계 (이 순서로 진행)
 

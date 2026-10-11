@@ -39,7 +39,7 @@ class HandoffScenarioTest {
         Path bare = tmp.resolve("remote.git");
         Git.init().setBare(true).setInitialBranch("main").setDirectory(bare.toFile()).call().close();
         String remote = bare.toUri().toString();
-        InitCommand.run(tmp.resolve("init"), remote, false, Optional.empty(), null);
+        InitCommand.run(tmp.resolve("init"), remote, false, Optional.empty(), Bot.PAPER_BUILD, null);
 
         try (McdNode b = McdNode.play("B", remote, tmp.resolve("B"), RELAY_B, 60)) {
             b.await(0, "[mcd] 준비됐다", Duration.ofMinutes(1));

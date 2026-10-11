@@ -36,7 +36,7 @@ class FirstJoinHoldTest {
         Path bare = tmp.resolve("remote.git");
         Git.init().setBare(true).setInitialBranch("main").setDirectory(bare.toFile()).call().close();
         String remote = bare.toUri().toString();
-        InitCommand.run(tmp.resolve("init"), remote, false, Optional.empty(), null);
+        InitCommand.run(tmp.resolve("init"), remote, false, Optional.empty(), Bot.PAPER_BUILD, null);
 
         try (McdNode a = McdNode.play("A", remote, tmp.resolve("A"), RELAY, 600)) {
             a.await(0, "[mcd] 준비됐다", Duration.ofMinutes(1));

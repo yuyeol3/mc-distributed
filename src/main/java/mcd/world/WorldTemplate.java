@@ -33,6 +33,10 @@ public final class WorldTemplate {
     private WorldTemplate() {}
 
     public static void writeInitialFiles(Path dir, boolean onlineMode) throws IOException {
+        writeInitialFiles(dir, onlineMode, PaperDistribution.DEFAULT_BUILD);
+    }
+
+    public static void writeInitialFiles(Path dir, boolean onlineMode, PaperBuild paperBuild) throws IOException {
         Files.writeString(dir.resolve(".gitignore"), GITIGNORE);
         Files.writeString(dir.resolve("server.properties"), """
                 online-mode=%s
@@ -45,7 +49,7 @@ public final class WorldTemplate {
                 ticks-per:
                   autosave: 0
                 """);
-        writePaperBuild(dir, PaperDistribution.DEFAULT_BUILD);
+        writePaperBuild(dir, paperBuild);
         LockState.initial().write(dir);
     }
 

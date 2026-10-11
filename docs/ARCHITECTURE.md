@@ -58,7 +58,7 @@ force 없는 push는 "원격 `main`이 내가 아는 커밋일 때만 내 커밋
 |---|---|
 | `world/` | 월드 데이터(Paper 26.1 구조: `world/dimensions/minecraft/...`, `world/players/data/`) |
 | `mcd-lock.properties` | 락: `owner`, `epoch`, `state`(FREE/HOSTING), `address`(다른 노드가 접속할 주소) |
-| `mcd-paper-build.txt` | 이 월드가 쓰는 Paper 빌드(예: `26.1.2-74`). **앱이 아니라 월드가 버전을 정한다**(10장) |
+| `mcd-paper-build.txt` | 이 월드가 쓰는 Paper 빌드(예: `26.2-133`). **앱이 아니라 월드가 버전을 정한다**(10장) |
 | `mcd-network.properties` | 선택. tailnet 조정 서버 주소와 인증 키 |
 | `server.properties` | `online-mode`, `region-file-compression=deflate`, `accepts-transfers=true` |
 | `bukkit.yml` | `ticks-per.autosave: 0` (4장 참고) |
@@ -297,7 +297,8 @@ flowchart LR
 - 사용자는 Java를 설치하지 않는다. 같은 런타임으로 Paper도 띄운다.
 - jpackage는 기본적으로 런타임에서 `java.exe`를 빼지만 mcd는 그 런타임으로 Paper를 띄워야 해서, 런타임을 jlink로 직접 만든다. JDK 25에는 jmods가 없어서 `java --list-modules`로 모듈 목록을 받고, 런타임 이미지 링크에서 넣을 수 없는 `jdk.jlink`는 뺀다.
 - **Paper 버전은 앱이 아니라 월드가 정한다.** 월드는 새 버전으로 한 번 열리면 되돌릴 수 없어서 한 월드의 모든 호스트가 같은 빌드를 써야 하고, 그룹마다 원하는 버전이 다를 수 있기 때문이다. 앱은 월드의 `mcd-paper-build.txt`에 적힌 빌드를 Paper 다운로드 API(fill v3)에서 받아, API가 알려주는 SHA-256으로 검증하고 `~/.mcd/cache/paper-<빌드>.jar`로 보관한다. 검증한 해시는 옆에 `.sha256`으로 남겨서 두 번째부터는 네트워크 없이 확인한다. Paper jar는 배포판에 넣지 않는다.
-- **지원 범위**: 1.20.5 미만은 거부한다(transfer가 없음). 그 버전의 Paper가 요구하는 Java가 앱에 들어 있는 런타임보다 새것이면 앱 업데이트를 안내한다(Paper도 같은 런타임으로 돈다). E2E로 확인한 26.1.x 밖이면 경고만 하고 진행한다. mcd가 기대는 콘솔 명령과 로그 문구(`save-off`, `Saved the game`, `Done (`, `There are N of a max`)가 버전마다 바뀔 수 있기 때문이다.
+- **지원 범위**: 1.20.5 미만은 거부한다(transfer가 없음). 그 버전의 Paper가 요구하는 Java가 앱에 들어 있는 런타임보다 새것이면 앱 업데이트를 안내한다(Paper도 같은 런타임으로 돈다). 확인한 버전(26.1.x, 26.2.x) 밖이면 경고만 하고 진행한다. mcd가 기대는 콘솔 명령과 로그 문구(`save-off`, `Saved the game`, `Done (`, `There are N of a max`, `transfer`)가 버전마다 바뀔 수 있기 때문이다. 새 월드는 26.2-133으로 만든다(`init --paper`로 바꿀 수 있다). 26.1.2는 Paper 지원이 끝났다(2026-07-26).
+- **새 버전 확인**: 테스트 봇이 26.1까지만 지원해서, 새 버전은 `PaperCompatibilityTest`(봇 없이 실제 Paper로 콘솔 동작과 26.1.2 월드 업그레이드 확인)와 정품 클라이언트 접속으로 확인한다. 26.2-133은 둘 다 통과했다(2026-10-11, 첫 기동 32초 붙잡기, 정품 인증, 몇 분 플레이).
 - **월드 업그레이드**: `mcd upgrade-paper`가 락을 잡고 버전 파일을 바꾼 뒤 반납한다. 호스트가 있는 동안에는 할 수 없고, 다운그레이드는 거부한다. 다음 호스트가 새 빌드로 월드를 열면서 월드 파일이 업그레이드된다.
 - GraalVM native-image는 쓰지 않는다. Paper가 JVM을 필요로 해서 런타임을 뺄 수 없고, 얻는 것은 런처 시작 속도 정도다.
 - 설치 파일(.msi)은 WiX Toolset이 필요해서 아직 만들지 않는다.
@@ -334,7 +335,8 @@ sequenceDiagram
 | 단위 | 소유권 프로토콜: 경쟁, 만료, heartbeat, 펜싱, 크래시 복귀, recovery | 진짜 로컬 bare repo + 주입한 가짜 시계 | `./gradlew test` |
 | 단위 | 중계, 설정, GitHub 클라이언트, 월드 오인 방지 | 에코 서버, 로컬 HTTP 서버 | `./gradlew test` |
 | 통합 | push CAS(로컬, GitHub), 플레이 중 스냅샷 일관성 | 실제 git, 실제 Paper | `./gradlew test`, `paperTest` |
-| E2E | P0 시나리오 5개, mcd 크래시, transfer, tailnet, 이관 | 노드는 별도 JVM 프로세스, 플레이어는 Mineflayer 봇(offline mode) | `./gradlew paperTest` |
+| E2E | P0 시나리오 5개, mcd 크래시, transfer, tailnet, 이관 | 노드는 별도 JVM 프로세스, 플레이어는 Mineflayer 봇(offline mode). 봇이 26.1까지만 지원해서 26.1.2 월드로 돈다 | `./gradlew paperTest` |
+| 호환성 | 새 Paper 빌드에서 mcd가 기대는 콘솔 동작, 이전 빌드 월드의 업그레이드 | 실제 Paper, 봇 없음 | `paperTest --tests '*PaperCompatibilityTest*' -Dmcd.paperBuild=<빌드>` |
 | 실험 | 저장 형식, 커밋 비용, 네트워크 | 기록한 세션 재생, VM(`mcd-friend`) + Headscale | `experiments/*.md` |
 
 - 봇은 각 노드의 중계(`localhost`)에만 접속한다. 실제 플레이어와 같은 경로다.

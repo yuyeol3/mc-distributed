@@ -83,7 +83,9 @@ class PaperDistributionTest {
         List<String> warnings = new ArrayList<>();
         PaperDistribution.checkSupported(PaperBuild.parse("26.1.2-74"), warnings::add);
         assertEquals(List.of(), warnings);
-        PaperDistribution.checkSupported(PaperBuild.parse("26.2-5"), warnings::add);
+        PaperDistribution.checkSupported(PaperBuild.parse("26.2-133"), warnings::add);
+        assertEquals(List.of(), warnings);
+        PaperDistribution.checkSupported(PaperBuild.parse("26.3-5"), warnings::add);
         assertEquals(1, warnings.size());
     }
 }

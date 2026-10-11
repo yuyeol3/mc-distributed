@@ -17,7 +17,7 @@
 | 무엇 | 누가 | 비고 |
 |---|---|---|
 | Windows 10/11 PC | 모두 | 배포판은 Java 런타임을 포함하므로 Java를 설치하지 않아도 된다 |
-| 마인크래프트 Java Edition (월드의 버전) | 모두 | 새 월드는 26.1.2로 만들어진다(26.1, 26.1.1 클라이언트도 접속된다). 월드 주인이 버전을 올리면 모두 그 버전으로 맞춘다. mcd 창에 "이 월드는 마인크래프트 OOO용이다"가 뜬다. 정품 계정이 필요하다 |
+| 마인크래프트 Java Edition (월드의 버전) | 모두 | 새 월드는 26.2로 만들어진다. 월드 주인이 버전을 올리면 모두 그 버전으로 맞춘다. mcd 창에 "이 월드는 마인크래프트 OOO용이다"가 뜬다. 정품 계정이 필요하다 |
 | GitHub 계정과 토큰 | 모두 | 월드를 보관하는 곳이다. **메인 계정과 따로 만든 계정**을 권한다(아래 참고) |
 | Tailscale 계정 | 월드 주인만 | 인터넷 너머의 친구와 할 때만 필요하다. 친구는 필요 없다 |
 
@@ -93,6 +93,7 @@ mcd-cli upgrade-paper --remote https://github.com/<계정>/<repo>.git --dir worl
 |---|---|---|
 | `init` | `--remote <git URL>` | 비어 있는 원격 repo |
 | | `--dir <폴더>` | 월드를 둘 새 폴더 |
+| | `--paper <버전 또는 버전-빌드>` | 월드의 마인크래프트(Paper) 버전. 없으면 기본값(26.2-133), 버전만 주면 그 버전의 최신 안정 빌드 |
 | | `--tailnet-auth-key <키>` | 인터넷 너머 친구와 하려면. 월드에 기록돼 모두에게 전달된다 |
 | | `--tailnet-control-url <주소>` | 조정 서버. 비우면 Tailscale. Headscale을 직접 운영하면 그 주소 |
 | | `--offline` | online mode를 끈다(테스트용, 정품 인증 없음) |
@@ -127,7 +128,7 @@ mcd-cli upgrade-paper --remote https://github.com/<계정>/<repo>.git --dir worl
 ./gradlew paperTest        # 실제 Paper + Mineflayer 봇 E2E (느림)
 ```
 
-`paperTest`를 돌리려면 `nodes/_cache/paper-26.1.2-74.jar`가 있어야 하고 `e2e/`에서 `npm install`을 해 둬야 한다. tailnet 시나리오는 조정 서버가 있을 때만 돈다(`MCD_TEST_CONTROL_URL`, `MCD_TEST_AUTH_KEY`, 개발 중에는 Headscale을 썼다). 테스트 구성은 [docs/ARCHITECTURE.md의 테스트 전략](docs/ARCHITECTURE.md#11-테스트-전략)을 참고한다.
+`paperTest`를 돌리려면 `nodes/_cache/paper-26.1.2-74.jar`가 있어야 하고 `e2e/`에서 `npm install`을 해 둬야 한다. 테스트 봇(Mineflayer)이 26.1까지만 접속할 수 있어서 봇 E2E는 26.1.2 월드로 돈다. 다른 Paper 빌드는 봇 없이 `./gradlew paperTest --tests '*PaperCompatibilityTest*' -Dmcd.paperBuild=<빌드>`로 확인한다(mcd가 기대는 콘솔 동작, 26.1.2 월드의 업그레이드). tailnet 시나리오는 조정 서버가 있을 때만 돈다(`MCD_TEST_CONTROL_URL`, `MCD_TEST_AUTH_KEY`, 개발 중에는 Headscale을 썼다). 테스트 구성은 [docs/ARCHITECTURE.md의 테스트 전략](docs/ARCHITECTURE.md#11-테스트-전략)을 참고한다.
 
 ```text
 src/main/java/mcd/

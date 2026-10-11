@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class UpgradeCommandTest {
 
     private static final byte[] JAR = "jar".getBytes(StandardCharsets.UTF_8);
+    private static final PaperBuild START = PaperBuild.parse("26.1.2-74");
 
     @TempDir
     Path tmp;
@@ -38,7 +39,7 @@ class UpgradeCommandTest {
         bare = tmp.resolve("remote.git");
         Git.init().setBare(true).setInitialBranch("main").setDirectory(bare.toFile()).call().close();
         remote = bare.toUri().toString();
-        InitCommand.run(tmp.resolve("init"), remote, false, Optional.empty(), null);
+        InitCommand.run(tmp.resolve("init"), remote, false, Optional.empty(), START, null);
     }
 
     @Test
@@ -56,7 +57,7 @@ class UpgradeCommandTest {
     void refusesDowngrade() throws Exception {
         try (FakePaperApi api = new FakePaperApi().build("26.1.2-70", JAR)) {
             assertThrows(IllegalStateException.class, () -> upgrade("26.1.2-70", api));
-            assertEquals(PaperDistribution.DEFAULT_BUILD.toString(), remoteFile(WorldTemplate.PAPER_BUILD_FILE).trim());
+            assertEquals(START.toString(), remoteFile(WorldTemplate.PAPER_BUILD_FILE).trim());
             assertTrue(remoteFile("mcd-lock.properties").contains("state=FREE"), "실패해도 락은 돌려줘야 한다");
         }
     }
@@ -69,7 +70,7 @@ class UpgradeCommandTest {
         try (FakePaperApi api = new FakePaperApi().build("26.2-7", JAR)) {
             IllegalStateException e = assertThrows(IllegalStateException.class, () -> upgrade("26.2", api));
             assertTrue(e.getMessage().contains("friend"), e.getMessage());
-            assertEquals(PaperDistribution.DEFAULT_BUILD.toString(), remoteFile(WorldTemplate.PAPER_BUILD_FILE).trim());
+            assertEquals(START.toString(), remoteFile(WorldTemplate.PAPER_BUILD_FILE).trim());
         }
     }
 

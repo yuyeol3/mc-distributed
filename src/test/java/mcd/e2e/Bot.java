@@ -1,5 +1,7 @@
 package mcd.e2e;
 
+import mcd.server.PaperBuild;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -15,6 +17,9 @@ import java.util.concurrent.TimeoutException;
 public final class Bot implements AutoCloseable {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(60);
+
+    /** 테스트 봇(Mineflayer 4.39)이 접속할 수 있는 Paper 빌드. 봇을 쓰는 테스트는 이 빌드로 월드를 만든다. */
+    public static final PaperBuild PAPER_BUILD = PaperBuild.parse("26.1.2-74");
 
     private final Process process;
     private final Writer stdin;

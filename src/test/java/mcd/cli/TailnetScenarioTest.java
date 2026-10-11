@@ -33,7 +33,7 @@ class TailnetScenarioTest {
         Git.init().setBare(true).setInitialBranch("main").setDirectory(bare.toFile()).call().close();
         String remote = bare.toUri().toString();
         NetworkConfig network = new NetworkConfig(System.getenv().getOrDefault("MCD_TEST_CONTROL_URL", ""), System.getenv("MCD_TEST_AUTH_KEY"));
-        InitCommand.run(tmp.resolve("init"), remote, false, Optional.of(network), null);
+        InitCommand.run(tmp.resolve("init"), remote, false, Optional.of(network), Bot.PAPER_BUILD, null);
 
         try (McdNode a = McdNode.play("A", remote, tmp.resolve("A"), 25711, 60);
              McdNode b = McdNode.play("B", remote, tmp.resolve("B"), 25721, 60)) {

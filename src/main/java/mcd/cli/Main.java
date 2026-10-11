@@ -2,6 +2,7 @@ package mcd.cli;
 
 import mcd.node.Node;
 import mcd.node.Timing;
+import mcd.server.PaperBuild;
 import mcd.server.PaperDistribution;
 import mcd.world.NetworkConfig;
 import org.eclipse.jgit.transport.CredentialsProvider;
@@ -20,8 +21,8 @@ public final class Main {
 
     private static final String USAGE = """
             사용법:
-              mcd init --remote <git URL> --dir <폴더> [--offline] [--tailnet-auth-key <키> [--tailnet-control-url <주소>]]
-                  빈 원격 repo에 새 월드를 만든다. --offline이면 online-mode=false(테스트용).
+              mcd init --remote <git URL> --dir <폴더> [--paper <버전 또는 버전-빌드>] [--offline] [--tailnet-auth-key <키> [--tailnet-control-url <주소>]]
+                  빈 원격 repo에 새 월드를 만든다. --paper가 없으면 기본 빌드를 쓴다. --offline이면 online-mode=false(테스트용).
                   tailnet 키를 주면 모든 노드가 그 tailnet으로 서로 접속한다(친구는 아무것도 설치하지 않음).
                   조정 서버를 비우면 Tailscale을 쓴다. Headscale 같은 다른 조정 서버도 쓸 수 있다.
               mcd play --remote <git URL> --dir <폴더> --node <이름> [--accept-eula]
@@ -64,6 +65,7 @@ public final class Main {
                     opts.containsKey("tailnet-auth-key")
                             ? Optional.of(new NetworkConfig(opts.getOrDefault("tailnet-control-url", ""), opts.get("tailnet-auth-key")))
                             : Optional.empty(),
+                    initialPaperBuild(opts.get("paper")),
                     credentials());
             case "play" -> {
                 int paperPort = Integer.parseInt(opts.getOrDefault("port", "25566"));
@@ -97,6 +99,12 @@ public final class Main {
                 System.exit(2);
             }
         }
+    }
+
+    /** init --paper: 없으면 기본 빌드, 버전만 주면 그 버전의 최신 안정 빌드. */
+    private static PaperBuild initialPaperBuild(String paper) throws Exception {
+        if (paper == null) return PaperDistribution.DEFAULT_BUILD;
+        return paper.matches(".*-\\d+$") ? PaperBuild.parse(paper) : PaperDistribution.official().latestStable(paper);
     }
 
     private static Map<String, String> parse(String[] args) {

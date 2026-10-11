@@ -2,6 +2,7 @@ package mcd.gui;
 
 import mcd.config.Settings;
 import mcd.github.GitHubClient;
+import mcd.server.PaperDistribution;
 import mcd.world.NetworkConfig;
 import mcd.world.WorldRepository;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
@@ -113,7 +114,7 @@ final class SetupDialog extends JDialog {
                     Optional<NetworkConfig> network = key.isEmpty()
                             ? Optional.empty()
                             : Optional.of(new NetworkConfig(tailnetControl.getText().trim(), key));
-                    WorldRepository.create(worldDir(remote), remote, true, network,
+                    WorldRepository.create(worldDir(remote), remote, true, network, PaperDistribution.DEFAULT_BUILD,
                             new UsernamePasswordCredentialsProvider("x-access-token", tokenText));
                     inviteHint = "\n\n친구를 초대하려면 https://github.com/" + login + "/" + repoName
                             + "/settings/access 에서 collaborator로 추가한다.";
