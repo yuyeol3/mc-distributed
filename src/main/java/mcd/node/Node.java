@@ -83,13 +83,14 @@ public final class Node implements AutoCloseable {
         }
         Git git = WorldRepository.openOrClone(config.dir(), config.remote(), config.credentials());
         try {
+            // 엉뚱한 git repo(예: 경로가 비어 현재 폴더)에 파일을 쓰지 않도록, 월드 repo인지부터 확인한다.
+            WorldTemplate.checkPaperBuild(config.dir());
             if (acceptEula) {
                 WorldTemplate.acceptEula(config.dir());
             }
             if (!Files.exists(config.dir().resolve("eula.txt"))) {
                 throw new IllegalStateException("Minecraft EULA(https://aka.ms/MinecraftEULA)에 동의해야 서버를 띄울 수 있다.");
             }
-            WorldTemplate.checkPaperBuild(config.dir());
             Path jar = PaperDistribution.ensureDownloaded(config.cacheDir());
             InstantSource clock = InstantSource.system();
             Timing t = config.timing();

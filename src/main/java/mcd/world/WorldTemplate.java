@@ -50,7 +50,11 @@ public final class WorldTemplate {
 
     /** 월드가 이 프로그램의 Paper 빌드로 만들어졌는지 확인한다. */
     public static void checkPaperBuild(Path dir) throws IOException {
-        String recorded = Files.readString(dir.resolve(PAPER_BUILD_FILE)).trim();
+        Path file = dir.resolve(PAPER_BUILD_FILE);
+        if (!Files.exists(file)) {
+            throw new IllegalStateException(dir.toAbsolutePath() + "는 mcd 월드가 아니다(" + PAPER_BUILD_FILE + " 없음)");
+        }
+        String recorded = Files.readString(file).trim();
         if (!recorded.equals(PaperDistribution.BUILD)) {
             throw new IllegalStateException("이 월드는 Paper " + recorded + "용인데 이 프로그램은 " + PaperDistribution.BUILD + "를 쓴다");
         }

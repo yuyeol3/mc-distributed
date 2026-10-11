@@ -7,6 +7,8 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SettingsTest {
 
@@ -21,6 +23,15 @@ class SettingsTest {
         settings.save(file);
 
         assertEquals(Optional.of(settings), Settings.load(file));
+    }
+
+    @Test
+    void blankWorldDirIsRejectedInsteadOfMeaningCurrentFolder() throws Exception {
+        Path file = tmp.resolve("settings.properties");
+        java.nio.file.Files.writeString(file, "node=a\nremote=x\nworldDir=\ntoken=\naddress=localhost:25566\n");
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> Settings.load(file));
+        assertTrue(e.getMessage().contains("worldDir"), e.getMessage());
     }
 
     @Test

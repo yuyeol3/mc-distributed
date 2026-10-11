@@ -25,12 +25,18 @@ public record Settings(String nodeName, String remote, Path worldDir, String tok
         try (Reader in = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
             p.load(in);
         }
+        for (String key : new String[] {"node", "remote", "worldDir", "address"}) {
+            // 빈 worldDir은 Path.of("")가 되어 현재 폴더를 월드로 착각하게 만든다.
+            if (p.getProperty(key, "").isBlank()) {
+                throw new IllegalStateException(file + "에 " + key + " 값이 없다. 파일을 지우고 다시 설정한다.");
+            }
+        }
         return Optional.of(new Settings(
-                p.getProperty("node", ""),
-                p.getProperty("remote", ""),
-                Path.of(p.getProperty("worldDir", "")),
+                p.getProperty("node"),
+                p.getProperty("remote"),
+                Path.of(p.getProperty("worldDir")),
                 p.getProperty("token", ""),
-                p.getProperty("address", "")));
+                p.getProperty("address")));
     }
 
     public void save(Path file) throws IOException {
