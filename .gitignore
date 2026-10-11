@@ -1,0 +1,6 @@
+.gradle/
+build/
+.idea/
+*.iml
+nodes/
+node_modules/
