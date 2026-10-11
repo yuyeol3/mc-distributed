@@ -39,7 +39,7 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 ## 남은 단계 (이 순서로 진행)
 
 ### 8. M2-b: 패키징, GUI, 첫 실행 마법사
-- jpackage로 Java 25 런타임을 포함한 Windows 설치 파일(`JAVA_HOME` 문제도 해결)
+- ~~jpackage로 Java 25 런타임을 포함한 배포판~~ 완료: `./gradlew packageZip` → 실행 폴더 zip(65MB, java.exe 포함 런타임). 패키지만으로 init, play, Paper 기동, 반납까지 확인. 설치 파일(.exe/.msi)은 WiX Toolset 설치가 필요해서 보류(사용자 결정)
 - Swing 최소 화면: 월드 선택, 상태(대기/호스트/접속 중인 호스트), 로그, 종료
 - 첫 실행 마법사: GitHub 토큰 → repo 생성 또는 선택 → 친구를 collaborator로 초대하는 방법 안내 → EULA 동의
 - GitHub 위험 대응: 월드 저장용 계정 분리 안내, 세션당 push 횟수·전송량·repo 크기 기록

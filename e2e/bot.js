@@ -32,7 +32,8 @@ connect(host, port)
 readline.createInterface({ input: process.stdin }).on('line', (line) => {
   const cmd = line.trim()
   if (cmd === 'inventory') {
-    const items = bot.inventory.items().map((i) => `${i.name}:${i.count}`).sort()
+    // 스폰 전에는 인벤토리가 없다. 빈 결과를 돌려주면 호출하는 쪽이 다시 묻는다.
+    const items = (bot.inventory ? bot.inventory.items() : []).map((i) => `${i.name}:${i.count}`).sort()
     console.log('INVENTORY ' + items.join(','))
   } else if (cmd === 'quit') {
     bot.quit()

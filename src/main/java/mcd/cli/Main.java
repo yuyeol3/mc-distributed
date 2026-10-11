@@ -32,6 +32,16 @@ public final class Main {
     private Main() {}
 
     public static void main(String[] args) throws Exception {
+        try {
+            run(args);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            // 사용자가 고칠 수 있는 문제(인자 누락, EULA 미동의 등)는 메시지만 보여준다.
+            System.err.println("[mcd] " + e.getMessage());
+            System.exit(2);
+        }
+    }
+
+    private static void run(String[] args) throws Exception {
         if (args.length == 0) {
             System.out.print(USAGE);
             System.exit(2);

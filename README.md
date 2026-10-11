@@ -2,9 +2,13 @@
 
 상시 서버 없이 친구들이 하나의 마인크래프트 월드를 공유한다. 플레이하려는 사람의 PC가 그때그때 Paper 서버가 되고, 월드는 git 원격 저장소(GitHub private repo 등)에 버전으로 보관된다.
 
+## 배포판
+
+`./gradlew packageZip`은 Java 25 런타임을 포함한 실행 폴더를 `build/distributions/mcd-windows.zip`으로 묶는다(압축 해제 후 `mcd/mcd.exe`). 사용자는 Java를 설치할 필요가 없다. 설치 파일(.exe/.msi)은 WiX Toolset이 있어야 만들 수 있어서 아직 없다.
+
 ## 사용법 (MVP, CLI)
 
-Java 25가 필요하다. 실행 스크립트는 `JAVA_HOME`의 Java를 쓰므로 `JAVA_HOME`이 Java 25를 가리켜야 한다(배포판에서는 jpackage로 런타임을 함께 넣을 예정).
+개발 중에는 `./gradlew installDist`로 만든 스크립트를 쓴다. 이 스크립트는 `JAVA_HOME`의 Java를 쓰므로 `JAVA_HOME`이 Java 25를 가리켜야 한다. 배포판의 `mcd.exe`는 같은 인자를 받는다.
 
 ```sh
 ./gradlew installDist
