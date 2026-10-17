@@ -16,11 +16,16 @@ import mcd.world.Invite;
 import org.eclipse.jgit.api.TransportConfigCallback;
 
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JFrame;
-import javax.swing.JLabel;
+import javax.swing.JToggleButton;
+import javax.swing.Timer;
+import javax.swing.UIManager;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -56,72 +61,100 @@ final class MainWindow extends JFrame {
     private static final Pattern ANSI = Pattern.compile("\u001B\\[[;\\d]*m");
 
     private volatile Settings settings;
-    private final JLabel status = new JLabel("준비하는 중...");
+    private final StatusPanel statusPanel = new StatusPanel("localhost:" + LISTEN_PORT);
     private final JComboBox<World> worldBox = new JComboBox<>();
-    private final JButton addWorld = new JButton("월드 추가");
+    private final JButton addWorld = new JButton("+ 월드 추가");
     private final JButton removeWorld = new JButton("목록에서 빼기");
     private final JButton upgrade = new JButton("버전 올리기");
     private final JButton inviteButton = new JButton("친구 초대");
     private final JButton account = new JButton("설정");
-    private final JTextArea logArea = new JTextArea(24, 90);
+    private final JToggleButton logToggle = new JToggleButton("▸ 로그와 Paper 콘솔");
+    private final JPanel logSection = new JPanel(new BorderLayout(0, 6));
+    private final JTextArea logArea = new JTextArea(18, 80);
     private final JTextField command = new JTextField();
     private final ExecutorService control = Executors.newSingleThreadExecutor(r -> Thread.ofPlatform().name("node-control").unstarted(r));
     /** 목록을 다시 채우는 동안 생기는 선택 이벤트를 무시한다(EDT에서만 씀). */
     private boolean refreshing;
+    /** control 스레드에서 노드를 켜거나 끄는 중이다. */
+    private volatile boolean busy;
+    private volatile boolean closing;
     private volatile Node node;
 
     MainWindow(Settings settings) {
-        super("mcd - " + settings.nodeName());
+        super("mcd — " + settings.nodeName());
         this.settings = settings;
 
-        JLabel howTo = new JLabel("마인크래프트 → 멀티플레이 → 서버 추가 → 주소 localhost:" + LISTEN_PORT);
-        howTo.setFont(howTo.getFont().deriveFont(Font.BOLD, 16f));
         DefaultListCellRenderer names = new DefaultListCellRenderer();
         worldBox.setRenderer((list, world, index, selected, focused) -> {
             java.awt.Component cell = names.getListCellRendererComponent(list, world == null ? "(월드 없음)" : world.name(), index, selected, focused);
             names.setToolTipText(world == null ? null : world.remote());
             return cell;
         });
+        worldBox.setFont(worldBox.getFont().deriveFont(Font.BOLD, worldBox.getFont().getSize2D() + 2f));
+        worldBox.setPrototypeDisplayValue(new World("x", Path.of("minecraft-distributed-world")));
         worldBox.addActionListener(e -> onWorldSelected());
         addWorld.addActionListener(e -> addWorld());
         removeWorld.addActionListener(e -> removeWorld());
         upgrade.addActionListener(e -> upgradeWorld());
         inviteButton.addActionListener(e -> invite());
+        inviteButton.setBackground(UIManager.getColor("Button.default.background"));
+        inviteButton.setForeground(UIManager.getColor("Button.default.foreground"));
+        inviteButton.setFont(inviteButton.getFont().deriveFont(Font.BOLD));
         account.addActionListener(e -> editAccount());
-        JPanel worldBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        worldBar.add(new JLabel("월드"));
-        worldBar.add(worldBox);
-        worldBar.add(addWorld);
-        worldBar.add(removeWorld);
-        worldBar.add(upgrade);
-        worldBar.add(inviteButton);
-        worldBar.add(account);
 
-        JPanel top = new JPanel(new BorderLayout(0, 6));
-        top.setBorder(BorderFactory.createEmptyBorder(10, 10, 6, 10));
-        top.add(worldBar, BorderLayout.NORTH);
-        top.add(howTo, BorderLayout.CENTER);
-        top.add(status, BorderLayout.SOUTH);
+        JPanel header = new JPanel(new BorderLayout(8, 0));
+        JPanel headerRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        headerRight.add(addWorld);
+        headerRight.add(account);
+        header.add(worldBox, BorderLayout.WEST);
+        header.add(headerRight, BorderLayout.EAST);
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        actions.add(inviteButton);
+        actions.add(upgrade);
+        actions.add(removeWorld);
 
         logArea.setEditable(false);
         logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-
-        JButton send = new JButton("Paper에 명령 보내기");
-        JButton quit = new JButton("종료");
+        logArea.setBackground(Theme.LOG_BACKGROUND);
+        logArea.setForeground(Theme.LOG_FOREGROUND);
+        logArea.setCaretColor(Theme.LOG_FOREGROUND);
+        JButton send = new JButton("Paper에 보내기");
         send.addActionListener(e -> sendCommand());
         command.addActionListener(e -> sendCommand());
-        quit.addActionListener(e -> shutdown());
-        JPanel bottom = new JPanel(new BorderLayout(6, 0));
-        bottom.setBorder(BorderFactory.createEmptyBorder(6, 10, 10, 10));
-        bottom.add(command, BorderLayout.CENTER);
-        JPanel buttons = new JPanel();
-        buttons.add(send);
-        buttons.add(quit);
-        bottom.add(buttons, BorderLayout.EAST);
+        command.putClientProperty("JTextField.placeholderText", "Paper 콘솔 명령(이 PC가 호스트일 때), 예: op <이름>");
+        JPanel commandRow = new JPanel(new BorderLayout(6, 0));
+        commandRow.add(command, BorderLayout.CENTER);
+        commandRow.add(send, BorderLayout.EAST);
+        logSection.add(new JScrollPane(logArea), BorderLayout.CENTER);
+        logSection.add(commandRow, BorderLayout.SOUTH);
+        logSection.setVisible(false);
+        logToggle.putClientProperty("JButton.buttonType", "borderless");
+        // 노드를 켜는 동안 다른 컨트롤이 잠깐 꺼지면 포커스가 여기로 와서 테두리가 남는다.
+        logToggle.setFocusable(false);
+        logToggle.addActionListener(e -> toggleLog());
 
-        add(top, BorderLayout.NORTH);
-        add(new JScrollPane(logArea), BorderLayout.CENTER);
-        add(bottom, BorderLayout.SOUTH);
+        JPanel top = new JPanel();
+        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
+        for (JComponent c : new JComponent[] {header, statusPanel, actions, logToggle}) {
+            c.setAlignmentX(LEFT_ALIGNMENT);
+            top.add(c);
+            top.add(Box.createVerticalStrut(10));
+        }
+
+        JButton quit = new JButton("종료");
+        quit.setToolTipText("월드를 저장하고 올린 뒤 끝낸다(호스트라면 접속 중인 사람에게 넘긴다). 창을 닫아도 같다.");
+        quit.addActionListener(e -> shutdown());
+        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        bottom.add(quit);
+
+        JPanel root = new JPanel(new BorderLayout(0, 10));
+        root.setBorder(BorderFactory.createEmptyBorder(16, 16, 14, 16));
+        root.add(top, BorderLayout.NORTH);
+        root.add(logSection, BorderLayout.CENTER);
+        root.add(bottom, BorderLayout.SOUTH);
+        setContentPane(root);
+
         setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         addWindowListener(new WindowAdapter() {
             @Override
@@ -130,14 +163,61 @@ final class MainWindow extends JFrame {
             }
         });
         refreshWorlds();
+        refreshStatus();
+        new Timer(1000, e -> refreshStatus()).start();
         pack();
+        setMinimumSize(getSize());
         setLocationRelativeTo(null);
     }
 
     void start() {
         setVisible(true);
+        worldBox.requestFocusInWindow();
         inControl(this::startNode);
         Thread.ofPlatform().daemon().name("update-check").start(this::checkForUpdate);
+    }
+
+    /** 로그 영역을 펼치거나 접는다. 펼치면 창을 키우고 접으면 줄인다. */
+    private void toggleLog() {
+        boolean show = logToggle.isSelected();
+        logSection.setVisible(show);
+        logToggle.setText(show ? "▾ 로그와 Paper 콘솔" : "▸ 로그와 Paper 콘솔");
+        if (show) {
+            setSize(getWidth(), Math.max(getHeight(), getMinimumSize().height + 300));
+        } else {
+            setSize(getWidth(), getMinimumSize().height);
+        }
+        revalidate();
+    }
+
+    /** 상태 카드를 노드 상태로 갱신한다(EDT, 1초마다). */
+    private void refreshStatus() {
+        if (closing) {
+            statusPanel.show(Theme.GRAY, "저장하고 끝내는 중", "호스트라면 월드를 올리고 접속 중인 사람에게 넘긴다.");
+            return;
+        }
+        if (settings.currentWorld().isEmpty()) {
+            statusPanel.show(Theme.GRAY, "월드가 없다", "'+ 월드 추가'로 새 월드를 만들거나 초대 코드로 참가한다.");
+            return;
+        }
+        Node current = node;
+        if (current == null) {
+            if (busy) {
+                statusPanel.show(Theme.ORANGE, "준비하는 중", "월드를 받고 서버 파일을 확인한다.");
+            } else {
+                statusPanel.show(Theme.RED, "꺼져 있다", "아래 로그에서 이유를 확인한다. 월드를 다시 고르면 다시 시작한다.");
+            }
+            return;
+        }
+        Node.Status s = current.status();
+        switch (s.phase()) {
+            case CHECKING -> statusPanel.show(Theme.GRAY, "원격 확인 중", "누가 호스트인지 확인하고 있다.");
+            case NO_HOST -> statusPanel.show(Theme.GRAY, "호스트 없음", "접속하면 이 PC가 서버가 된다(10~20초).");
+            case OTHER_HOST -> statusPanel.show(Theme.GREEN, "지금 호스트: " + s.host(), "접속하면 그 PC의 서버로 이어진다.");
+            case STARTING -> statusPanel.show(Theme.ORANGE, "이 PC가 서버를 띄우는 중", "잠시 뒤 접속된다. 접속 화면에서 기다린다.");
+            case HOSTING -> statusPanel.show(Theme.GREEN, "이 PC가 호스트",
+                    s.players() == 0 ? "접속한 사람이 없다. 아무도 없으면 5분 뒤 스스로 내려간다." : "접속 " + s.players() + "명");
+        }
     }
 
     // ---- 노드 켜고 끄기 (control 스레드) ----
@@ -182,9 +262,11 @@ final class MainWindow extends JFrame {
     private void inControl(Runnable task) {
         setControlsEnabled(false);
         control.execute(() -> {
+            busy = true;
             try {
                 task.run();
             } finally {
+                busy = false;
                 SwingUtilities.invokeLater(() -> setControlsEnabled(true));
             }
         });
@@ -404,8 +486,9 @@ final class MainWindow extends JFrame {
     }
 
     private void shutdown() {
+        closing = true;
         SwingUtilities.invokeLater(() -> {
-            status.setText("저장하고 끝내는 중...");
+            refreshStatus();
             setControlsEnabled(false);
         });
         control.execute(() -> {
@@ -416,7 +499,7 @@ final class MainWindow extends JFrame {
 
     /** mcd 안내 메시지. 상태 줄에도 보여준다. */
     private void log(String message) {
-        SwingUtilities.invokeLater(() -> status.setText(message));
+        SwingUtilities.invokeLater(() -> statusPanel.setMessage(message));
         append("[mcd] " + message);
     }
 

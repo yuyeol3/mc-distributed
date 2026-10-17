@@ -38,6 +38,8 @@ final class HostSession {
     private final CountDownLatch stopRequested = new CountDownLatch(1);
     private final CountDownLatch ended = new CountDownLatch(1);
     private volatile PaperServer paper;
+    /** 마지막으로 센 접속 인원(관찰 주기마다 갱신). */
+    private volatile int players;
 
     HostSession(HostLock lock, Path dir, Path jar, int paperPort, int handoffPort, String node, Timing timing,
                 InstantSource clock, Consumer<String> log, PrintStream console) {
@@ -69,6 +71,10 @@ final class HostSession {
 
     boolean isRunning() {
         return ended.getCount() > 0;
+    }
+
+    int players() {
+        return players;
     }
 
     void requestStop() {
@@ -125,7 +131,8 @@ final class HostSession {
                 }
                 if (!now.isBefore(lastPlayerCheck.plus(timing.poll()))) {
                     lastPlayerCheck = now;
-                    if (paper.onlinePlayers() > 0) {
+                    players = paper.onlinePlayers();
+                    if (players > 0) {
                         lastPlayerSeen = now;
                     } else if (!now.isBefore(lastPlayerSeen.plus(timing.idle()))) {
                         log.accept("아무도 접속하지 않은 지 " + timing.idle().toSeconds() + "초가 지나 서버를 내린다.");

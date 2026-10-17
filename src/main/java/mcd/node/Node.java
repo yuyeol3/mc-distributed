@@ -179,6 +179,35 @@ public final class Node implements AutoCloseable {
         if (tailnet != null) tailnet.close();
     }
 
+    /** 화면에 보여줄 지금 상태. */
+    public enum Phase {
+        /** 아직 원격 락을 확인하지 않았다. */
+        CHECKING,
+        /** 호스트가 없다. 접속하면 이 PC가 호스트가 된다. */
+        NO_HOST,
+        /** 다른 PC가 호스트다(host). */
+        OTHER_HOST,
+        /** 이 PC가 호스트가 되어 Paper가 기동 중이다. */
+        STARTING,
+        /** 이 PC가 호스트다. players는 마지막으로 센 접속 인원. */
+        HOSTING
+    }
+
+    public record Status(Phase phase, String host, int players) {}
+
+    public Status status() {
+        HostSession current = session;
+        if (current != null && current.isRunning()) {
+            return new Status(current.isReady() ? Phase.HOSTING : Phase.STARTING, node, current.players());
+        }
+        LockState seen = lastAnnounced;
+        if (seen == null) return new Status(Phase.CHECKING, null, 0);
+        if (seen.state() == LockState.State.HOSTING && !seen.owner().equals(node)) {
+            return new Status(Phase.OTHER_HOST, seen.owner(), 0);
+        }
+        return new Status(Phase.NO_HOST, null, 0);
+    }
+
     /** 호스트인 동안 사용자 콘솔 입력을 Paper로 넘긴다. 호스트가 아니면 false. */
     public boolean consoleCommand(String line) throws IOException {
         HostSession current = session;

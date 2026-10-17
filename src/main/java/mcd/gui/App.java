@@ -5,7 +5,6 @@ import mcd.config.Settings.World;
 
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
 import java.util.Optional;
 
 /** 배포판의 기본 진입점. 처음이면 설정과 첫 월드를 받고, 그다음 메인 창에서 노드를 돌린다. */
@@ -16,7 +15,7 @@ public final class App {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             try {
-                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                Theme.apply();
                 Optional<Settings> saved = Settings.load(Settings.defaultFile());
                 Settings settings = saved.isPresent() ? saved.get() : firstRun();
                 if (settings == null) {
