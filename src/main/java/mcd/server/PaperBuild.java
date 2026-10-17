@@ -12,7 +12,7 @@ public record PaperBuild(String version, int build) implements Comparable<PaperB
         String s = text.trim();
         int dash = s.lastIndexOf('-');
         if (dash <= 0) {
-            throw new IllegalArgumentException("Paper 빌드는 '버전-빌드' 형식이어야 한다: " + text);
+            throw new IllegalArgumentException("Paper 빌드는 '버전-빌드' 형식이어야 합니다: " + text);
         }
         return new PaperBuild(s.substring(0, dash), Integer.parseInt(s.substring(dash + 1)));
     }

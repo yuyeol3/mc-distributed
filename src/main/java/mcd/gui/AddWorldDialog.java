@@ -53,14 +53,14 @@ final class AddWorldDialog extends JDialog {
         form.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
         int row = 0;
         row = Forms.addRow(form, row, createNew, newRepo);
-        row = Forms.addNote(form, row, "먼저 github.com/new에서 빈 private repo(README 없이)를 만들고 그 주소를 넣는다. "
-                + "추가를 누르면 deploy key 등록을 안내한다. 마인크래프트 " + PaperDistribution.DEFAULT_BUILD.version() + " 월드로 만들어진다.");
+        row = Forms.addNote(form, row, "먼저 github.com/new에서 빈 private repo(README 없이)를 만들고 그 주소를 넣어 주세요. "
+                + "추가를 누르면 deploy key 등록을 안내합니다. 마인크래프트 " + PaperDistribution.DEFAULT_BUILD.version() + " 월드로 만들어집니다.");
         row = Forms.addRow(form, row, joinExisting, invite);
-        row = Forms.addNote(form, row, "월드 주인에게 받은 초대 코드(mcd1.로 시작)를 붙여 넣는다. GitHub 계정이 필요 없다.");
+        row = Forms.addNote(form, row, "월드 주인에게 받은 초대 코드(mcd1.로 시작)를 붙여 넣어 주세요. GitHub 계정이 필요 없습니다.");
         row = Forms.addRow(form, row, "tailnet 인증 키", tailnetKey);
-        row = Forms.addNote(form, row, "새 월드일 때만. 인터넷 너머의 친구가 접속하려면 필요하다. Tailscale 관리 화면에서 재사용 가능한 키를 한 번 발급해 넣으면 친구들은 아무것도 설치하지 않는다. 비우면 같은 PC/네트워크에서만 접속된다.");
+        row = Forms.addNote(form, row, "새 월드일 때만 씁니다. 인터넷 너머의 친구가 접속하려면 필요합니다. Tailscale 관리 화면에서 재사용 가능한 키를 한 번 발급해 넣으면 친구들은 아무것도 설치하지 않아도 됩니다. 비우면 같은 PC/네트워크에서만 접속됩니다.");
         row = Forms.addRow(form, row, "조정 서버 주소", tailnetControl);
-        Forms.addNote(form, row, "비우면 Tailscale을 쓴다. Headscale을 직접 운영하면 그 주소를 넣는다.");
+        Forms.addNote(form, row, "비우면 Tailscale을 씁니다. Headscale을 직접 운영한다면 그 주소를 넣어 주세요.");
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton cancel = new JButton("취소");
@@ -90,7 +90,7 @@ final class AddWorldDialog extends JDialog {
                 create(GitHubRepo.parse(newRepo.getText()));
             }
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "월드를 추가하지 못했다: " + e.getMessage());
+            JOptionPane.showMessageDialog(this, "월드를 추가하지 못했습니다: " + e.getMessage());
         }
     }
 
@@ -107,7 +107,7 @@ final class AddWorldDialog extends JDialog {
         inBackground(() -> {
             WorldRepository.create(worldDir(remote), remote, true, network, PaperDistribution.DEFAULT_BUILD, key.transport());
             return new World(remote, worldDir(remote), key.encode());
-        }, "\n\n친구를 초대하려면 메인 창의 '친구 초대'를 누른다.");
+        }, "\n\n친구를 초대하려면 메인 창의 '친구 초대'를 누르세요.");
     }
 
     private void join(String text) throws Exception {
@@ -143,11 +143,11 @@ final class AddWorldDialog extends JDialog {
             protected void done() {
                 try {
                     result = get();
-                    JOptionPane.showMessageDialog(AddWorldDialog.this, "월드 " + result.name() + "을(를) 추가했다." + doneNote);
+                    JOptionPane.showMessageDialog(AddWorldDialog.this, "월드 " + result.name() + "을(를) 추가했습니다." + doneNote);
                     dispose();
                 } catch (InterruptedException | ExecutionException e) {
                     Throwable cause = e.getCause() == null ? e : e.getCause();
-                    JOptionPane.showMessageDialog(AddWorldDialog.this, "월드를 추가하지 못했다: " + cause.getMessage());
+                    JOptionPane.showMessageDialog(AddWorldDialog.this, "월드를 추가하지 못했습니다: " + cause.getMessage());
                     ok.setEnabled(true);
                 }
             }
@@ -159,7 +159,7 @@ final class AddWorldDialog extends JDialog {
         Path dir = worldDir(remote);
         for (World w : settings.worlds()) {
             if (w.dir().equals(dir) && !w.remote().equals(remote)) {
-                throw new IllegalStateException("이미 같은 이름의 월드(" + w.remote() + ")가 " + dir + "를 쓰고 있다.");
+                throw new IllegalStateException("이미 같은 이름의 월드(" + w.remote() + ")가 " + dir + "를 쓰고 있습니다.");
             }
         }
     }

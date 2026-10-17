@@ -37,7 +37,7 @@ final class PlayCommand {
         Thread.ofPlatform().daemon().name("console").start(() -> readConsole(node));
         try {
             stopRequested.await();
-            log("종료한다.");
+            log("종료합니다.");
         } finally {
             node.close();
             finished.countDown();
@@ -52,7 +52,7 @@ final class PlayCommand {
                 if (line.trim().equals("stop")) {
                     stopRequested.countDown();
                 } else if (!node.consoleCommand(line)) {
-                    log("이 PC는 지금 호스트가 아니다. 끝내려면 stop을 입력한다.");
+                    log("이 PC는 지금 호스트가 아닙니다. 끝내려면 stop을 입력하세요.");
                 }
             }
         } catch (IOException ignored) {

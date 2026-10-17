@@ -116,7 +116,7 @@ public record Settings(String nodeName, String token, String address, List<World
 
     private static void require(Path file, Properties p, String key) {
         if (p.getProperty(key, "").isBlank()) {
-            throw new IllegalStateException(file + "에 " + key + " 값이 없다. 파일을 지우고 다시 설정한다.");
+            throw new IllegalStateException(file + "에 " + key + " 값이 없습니다. 파일을 지우고 다시 설정하세요.");
         }
     }
 }

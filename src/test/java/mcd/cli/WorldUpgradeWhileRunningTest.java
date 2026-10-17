@@ -43,20 +43,20 @@ class WorldUpgradeWhileRunningTest {
         InitCommand.run(tmp.resolve("init"), remote, false, Optional.empty(), Bot.PAPER_BUILD, null);
 
         try (McdNode a = McdNode.play("A", remote, tmp.resolve("A"), RELAY, 60)) {
-            a.await(0, "[mcd] 준비됐다", Duration.ofMinutes(1));
+            a.await(0, "[mcd] 준비됐습니다", Duration.ofMinutes(1));
             assertTrue(a.printed("Paper " + Bot.PAPER_BUILD + ")"), "처음에는 26.1.2 월드여야 한다");
 
             UpgradeCommand.run(tmp.resolve("owner"), remote, "owner", "26.2-133", Path.of("nodes/_cache"), null,
                     PaperDistribution.official(), m -> {});
 
             try (Socket login = loginStart(RELAY)) {
-                a.await(0, "[mcd] 월드의 버전이 바뀌었다: 마인크래프트 26.2(Paper 26.2-133)", Duration.ofMinutes(1));
+                a.await(0, "[mcd] 월드의 버전이 바뀌었습니다: 마인크래프트 26.2(Paper 26.2-133)", Duration.ofMinutes(1));
                 a.await(0, "Starting minecraft server version 26.2", Duration.ofMinutes(2));
-                a.await(0, "[mcd] Paper가 준비됐다", Duration.ofMinutes(3));
+                a.await(0, "[mcd] Paper가 준비됐습니다", Duration.ofMinutes(3));
             }
             int m = a.mark();
             a.send("stop");
-            a.await(m, "[mcd] 월드를 올리고 락을 반납했다.", Duration.ofMinutes(2));
+            a.await(m, "[mcd] 월드를 올리고 락을 반납했습니다.", Duration.ofMinutes(2));
         }
     }
 

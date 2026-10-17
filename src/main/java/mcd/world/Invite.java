@@ -19,17 +19,17 @@ public record Invite(GitHubRepo repo, DeployKey key) {
     public static Invite parse(String code) throws GeneralSecurityException {
         String text = code.trim();
         if (!looksLikeInvite(text)) {
-            throw new IllegalArgumentException("mcd 초대 코드가 아니다(mcd1.로 시작해야 한다)");
+            throw new IllegalArgumentException("mcd 초대 코드가 아닙니다(mcd1.로 시작해야 합니다)");
         }
         String[] parts = text.substring(PREFIX.length()).split("\\.", 2);
         if (parts.length != 2) {
-            throw new IllegalArgumentException("초대 코드가 잘렸다. 전체를 다시 복사한다.");
+            throw new IllegalArgumentException("초대 코드가 잘렸습니다. 전체를 다시 복사하세요.");
         }
         String repo;
         try {
             repo = new String(Base64.getUrlDecoder().decode(parts[0]), StandardCharsets.UTF_8);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("초대 코드가 잘렸다. 전체를 다시 복사한다.", e);
+            throw new IllegalArgumentException("초대 코드가 잘렸습니다. 전체를 다시 복사하세요.", e);
         }
         return new Invite(GitHubRepo.parse(repo), DeployKey.decode(parts[1]));
     }

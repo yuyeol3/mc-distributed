@@ -31,7 +31,7 @@ public final class UpgradeCommand {
             HostLock lock = new HostLock(git, node, InstantSource.system(), timing.ttl(), timing.margin(), auth);
             Acquisition acquisition = lock.tryAcquire("");
             if (!acquisition.acquired()) {
-                throw new IllegalStateException("지금 " + acquisition.lock().owner() + "이(가) 호스트라서 바꿀 수 없다. 모두 나간 뒤에 다시 한다.");
+                throw new IllegalStateException("지금 " + acquisition.lock().owner() + "이(가) 호스트라서 바꿀 수 없습니다. 모두 나간 뒤에 다시 하세요.");
             }
             // 락을 잡은 뒤의 작업 트리가 최신 월드다. 여기서 실패하면 바꾸지 않고 락만 돌려준다.
             PaperBuild next;
@@ -39,7 +39,7 @@ public final class UpgradeCommand {
                 PaperBuild current = WorldTemplate.paperBuild(dir);
                 next = target.matches(".*-\\d+$") ? PaperBuild.parse(target) : paper.latestStable(target);
                 if (next.compareTo(current) <= 0) {
-                    throw new IllegalStateException("지금 빌드(" + current + ")보다 새 빌드만 쓸 수 있다. 월드는 옛 버전으로 되돌릴 수 없다.");
+                    throw new IllegalStateException("지금 빌드(" + current + ")보다 새 빌드만 쓸 수 있습니다. 월드는 옛 버전으로 되돌릴 수 없습니다.");
                 }
                 PaperDistribution.checkSupported(next, log);
                 // 받을 수 있는지, 이 앱의 Java로 돌릴 수 있는지 미리 확인하고 캐시해 둔다.
@@ -50,9 +50,9 @@ public final class UpgradeCommand {
             }
             WorldTemplate.writePaperBuild(dir, next);
             if (lock.release() != PushOutcome.OK) {
-                throw new IllegalStateException("바꾼 버전을 올리지 못했다. 다시 시도한다.");
+                throw new IllegalStateException("바꾼 버전을 올리지 못했습니다. 다시 시도하세요.");
             }
-            log.accept("월드의 Paper를 " + next + "로 올렸다. 모두 마인크래프트 클라이언트를 " + next.version() + "로 맞춰야 한다.");
+            log.accept("월드의 Paper를 " + next + "로 올렸습니다. 모두 마인크래프트 클라이언트를 " + next.version() + "로 맞춰야 합니다.");
             return next;
         }
     }

@@ -60,7 +60,7 @@ public final class WorldTemplate {
     public static PaperBuild paperBuild(Path dir) throws IOException {
         Path file = dir.resolve(PAPER_BUILD_FILE);
         if (!Files.exists(file)) {
-            throw new IllegalStateException(dir.toAbsolutePath() + "는 mcd 월드가 아니다(" + PAPER_BUILD_FILE + " 없음)");
+            throw new IllegalStateException(dir.toAbsolutePath() + "는 mcd 월드가 아닙니다(" + PAPER_BUILD_FILE + " 없음)");
         }
         return PaperBuild.parse(Files.readString(file));
     }

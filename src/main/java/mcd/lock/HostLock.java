@@ -287,7 +287,7 @@ public final class HostLock {
     private ObjectId remoteHead() throws IOException {
         ObjectId id = git.getRepository().resolve(REMOTE_MAIN);
         if (id == null) {
-            throw new IllegalStateException("원격에 main이 없다. 월드 repo가 초기화되지 않았다.");
+            throw new IllegalStateException("원격에 main이 없습니다. 월드 repo가 초기화되지 않았습니다.");
         }
         return id;
     }

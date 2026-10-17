@@ -109,7 +109,7 @@ public final class Node implements AutoCloseable {
      */
     public static Node open(Config config, boolean acceptEula, Consumer<String> log, PrintStream console) throws Exception {
         if (!WorldRepository.exists(config.dir())) {
-            log.accept(config.remote() + "에서 월드를 받는다.");
+            log.accept(config.remote() + "에서 월드를 받습니다.");
         }
         Git git = WorldRepository.openOrClone(config.dir(), config.remote(), config.auth());
         try {
@@ -120,14 +120,14 @@ public final class Node implements AutoCloseable {
                 WorldTemplate.acceptEula(config.dir());
             }
             if (!Files.exists(config.dir().resolve("eula.txt"))) {
-                throw new IllegalStateException("Minecraft EULA(https://aka.ms/MinecraftEULA)에 동의해야 서버를 띄울 수 있다.");
+                throw new IllegalStateException("Minecraft EULA(https://aka.ms/MinecraftEULA)에 동의해야 서버를 띄울 수 있습니다.");
             }
-            log.accept("이 월드는 마인크래프트 " + build.version() + "용이다(Paper " + build + ").");
+            log.accept("이 월드는 마인크래프트 " + build.version() + "용입니다(Paper " + build + ").");
             Path jar = PaperDistribution.official().ensureDownloaded(config.cacheDir(), build);
             try {
                 PaperServer.patch(config.dir(), jar, console);
             } catch (IOException e) {
-                log.accept("Paper를 미리 준비하지 못했다(" + e.getMessage() + "). 호스트가 될 때 다시 준비한다.");
+                log.accept("Paper를 미리 준비하지 못했습니다(" + e.getMessage() + "). 호스트가 될 때 다시 준비합니다.");
             }
             InstantSource clock = InstantSource.system();
             Timing t = config.timing();
@@ -142,11 +142,11 @@ public final class Node implements AutoCloseable {
     public void start() throws Exception {
         Proxy remote = Proxy.NO_PROXY;
         if (network.isPresent()) {
-            log.accept("tailnet에 붙는다.");
+            log.accept("tailnet에 붙습니다.");
             tailnet = Tailnet.join(network.get(), tailnetName(node), tailnetState, paperPort, log);
             address = tailnet.ip() + ":" + paperPort;
             remote = tailnet.proxy();
-            log.accept("tailnet 주소는 " + address + "이다.");
+            log.accept("tailnet 주소는 " + address + "입니다.");
         }
         relay = Relay.start(listenPort, new Relay.Router() {
             @Override
@@ -159,7 +159,7 @@ public final class Node implements AutoCloseable {
                 return Node.this.currentHost();
             }
         }, remote);
-        log.accept("준비됐다. 마인크래프트에서 localhost:" + relay.port() + "로 접속하면 된다.");
+        log.accept("준비됐습니다. 마인크래프트에서 localhost:" + relay.port() + "로 접속하면 됩니다.");
         Thread.ofPlatform().name("node-observer").start(this::observeLoop);
     }
 
@@ -228,14 +228,14 @@ public final class Node implements AutoCloseable {
             if (!acquisition.acquired()) {
                 return parse(acquisition.lock().address());
             }
-            log.accept("이 PC가 호스트가 됐다(epoch " + acquisition.lock().epoch() + "). 락 획득 "
-                    + HostSession.seconds(start, clock.instant()) + ". Paper를 시작한다.");
+            log.accept("이 PC가 호스트가 됐습니다(epoch " + acquisition.lock().epoch() + "). 락 획득 "
+                    + HostSession.seconds(start, clock.instant()) + ". Paper를 시작합니다.");
             preparePaperForWorld();
             session = new HostSession(lock, dir, jar, paperPort, handoffPort, node, timing, clock, log, console);
             session.start();
             return awaitLocalPaper();
         } catch (org.eclipse.jgit.api.errors.GitAPIException e) {
-            throw new IOException("원격 저장소를 확인하지 못했다", e);
+            throw new IOException("원격 저장소를 확인하지 못했습니다", e);
         }
     }
 
@@ -248,7 +248,7 @@ public final class Node implements AutoCloseable {
             PaperBuild current = WorldTemplate.paperBuild(dir);
             if (current.equals(build)) return;
             PaperDistribution.checkSupported(current, log);
-            log.accept("월드의 버전이 바뀌었다: 마인크래프트 " + current.version() + "(Paper " + current + ").");
+            log.accept("월드의 버전이 바뀌었습니다: 마인크래프트 " + current.version() + "(Paper " + current + ").");
             jar = PaperDistribution.official().ensureDownloaded(cacheDir, current);
             build = current;
         } catch (IOException | InterruptedException | RuntimeException e) {
@@ -283,7 +283,7 @@ public final class Node implements AutoCloseable {
 
     private InetSocketAddress awaitLocalPaper() throws IOException {
         if (!session.awaitReady(ROUTE_WAIT)) {
-            throw new IOException("Paper가 아직 기동 중이다");
+            throw new IOException("Paper가 아직 기동 중입니다");
         }
         return new InetSocketAddress(InetAddress.getLoopbackAddress(), paperPort);
     }
@@ -301,7 +301,7 @@ public final class Node implements AutoCloseable {
             } catch (InterruptedException e) {
                 return;
             } catch (Exception e) {
-                log.accept("원격 저장소를 확인하지 못했다: " + e.getMessage());
+                log.accept("원격 저장소를 확인하지 못했습니다: " + e.getMessage());
                 try {
                     closed.await(timing.poll().toMillis(), TimeUnit.MILLISECONDS);
                 } catch (InterruptedException ie) {
@@ -315,9 +315,9 @@ public final class Node implements AutoCloseable {
         if (current.equals(lastAnnounced)) return;
         lastAnnounced = current;
         if (current.state() == LockState.State.HOSTING && !current.owner().equals(node)) {
-            log.accept("지금 호스트는 " + current.owner() + "이다. 접속하면 그쪽으로 이어진다.");
+            log.accept("지금 호스트는 " + current.owner() + "입니다. 접속하면 그쪽으로 이어집니다.");
         } else if (current.state() == LockState.State.FREE) {
-            log.accept("지금은 호스트가 없다. 접속하면 이 PC가 호스트가 된다.");
+            log.accept("지금은 호스트가 없습니다. 접속하면 이 PC가 호스트가 됩니다.");
         }
     }
 
@@ -330,7 +330,7 @@ public final class Node implements AutoCloseable {
 
     private static InetSocketAddress parse(String hostPort) throws IOException {
         int colon = hostPort.lastIndexOf(':');
-        if (colon < 0) throw new IOException("호스트 주소가 없다");
+        if (colon < 0) throw new IOException("호스트 주소가 없습니다");
         return new InetSocketAddress(hostPort.substring(0, colon), Integer.parseInt(hostPort.substring(colon + 1)));
     }
 }

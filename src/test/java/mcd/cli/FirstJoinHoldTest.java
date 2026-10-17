@@ -40,18 +40,18 @@ class FirstJoinHoldTest {
         InitCommand.run(tmp.resolve("init"), remote, false, Optional.empty(), Bot.PAPER_BUILD, null);
 
         try (McdNode a = McdNode.play("A", remote, tmp.resolve("A"), RELAY, 600)) {
-            a.await(0, "[mcd] 준비됐다", Duration.ofMinutes(1));
+            a.await(0, "[mcd] 준비됐습니다", Duration.ofMinutes(1));
 
             String idle = Bot.ping(RELAY);
             assertTrue(idle.startsWith("PING") && idle.contains("mcd"), "중계가 직접 답해야 한다: " + idle);
             Thread.sleep(2000);
-            assertFalse(a.printed("호스트가 됐다"), "서버 목록 확인만으로 호스트가 되면 안 된다");
+            assertFalse(a.printed("호스트가 됐습니다"), "서버 목록 확인만으로 호스트가 되면 안 된다");
 
             long t0 = System.nanoTime();
             try (Bot alice = Bot.join("alice", RELAY, Duration.ofMinutes(4))) {
                 long seconds = (System.nanoTime() - t0) / 1_000_000_000L;
                 System.out.println("first join took " + seconds + "s");
-                assertTrue(a.printed("[mcd] 이 PC가 호스트가 됐다"));
+                assertTrue(a.printed("[mcd] 이 PC가 호스트가 됐습니다"));
 
                 String hosting = Bot.ping(RELAY);
                 assertTrue(hosting.startsWith("PING") && !hosting.contains("mcd") && hosting.contains("\"online\":1"),

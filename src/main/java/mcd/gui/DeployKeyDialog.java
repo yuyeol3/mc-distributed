@@ -30,7 +30,7 @@ final class DeployKeyDialog extends JDialog {
 
     private final GitHubRepo repo;
     private final DeployKey key;
-    private final JButton done = new JButton("등록했다");
+    private final JButton done = new JButton("등록 완료");
     private boolean confirmed;
 
     private DeployKeyDialog(Window owner, GitHubRepo repo, DeployKey key) {
@@ -39,11 +39,11 @@ final class DeployKeyDialog extends JDialog {
         this.key = key;
 
         JLabel steps = new JLabel("<html><div style='width:460px'>"
-                + "이 월드의 GitHub repo(<b>" + repo + "</b>)에 아래 키를 한 번 등록한다. 이 키가 있으면 GitHub 계정 없이 월드를 읽고 쓸 수 있다."
-                + "<ol><li>'GitHub에서 열기'로 Deploy key 추가 화면을 연다(repo 주인 계정으로 로그인).</li>"
-                + "<li>Title에 <b>mcd</b>, Key에 아래 공개키를 붙여 넣는다('공개키 복사').</li>"
-                + "<li><b>Allow write access</b>를 체크하고 Add key를 누른다.</li>"
-                + "<li>여기서 '등록했다'를 누르면 mcd가 접속해 확인한다.</li></ol></div></html>");
+                + "이 월드의 GitHub repo(<b>" + repo + "</b>)에 아래 키를 한 번 등록해 주세요. 이 키가 있으면 GitHub 계정 없이 월드를 읽고 쓸 수 있습니다."
+                + "<ol><li>'GitHub에서 열기'로 Deploy key 추가 화면을 엽니다(repo 주인 계정으로 로그인).</li>"
+                + "<li>Title에 <b>mcd</b>, Key에 아래 공개키를 붙여 넣습니다('공개키 복사').</li>"
+                + "<li><b>Allow write access</b>를 체크하고 Add key를 누릅니다.</li>"
+                + "<li>여기서 '등록 완료'를 누르면 mcd가 접속해 확인합니다.</li></ol></div></html>");
         JTextArea publicKey = new JTextArea(key.publicKeyLine(), 3, 50);
         publicKey.setLineWrap(true);
         publicKey.setEditable(false);
@@ -95,8 +95,8 @@ final class DeployKeyDialog extends JDialog {
                     dispose();
                 } catch (InterruptedException | ExecutionException e) {
                     Throwable cause = e.getCause() == null ? e : e.getCause();
-                    JOptionPane.showMessageDialog(DeployKeyDialog.this, "이 키로 쓰지 못했다: " + cause.getMessage()
-                            + "\n\n키 전체를 붙여 넣었는지, Allow write access를 체크했는지 확인한다.");
+                    JOptionPane.showMessageDialog(DeployKeyDialog.this, "이 키로 쓰지 못했습니다: " + cause.getMessage()
+                            + "\n\n키 전체를 붙여 넣었는지, Allow write access를 체크했는지 확인해 주세요.");
                     done.setEnabled(true);
                 }
             }
@@ -112,7 +112,7 @@ final class DeployKeyDialog extends JDialog {
             Desktop.getDesktop().browse(URI.create(url));
         } catch (Exception e) {
             copyToClipboard(url);
-            JOptionPane.showMessageDialog(this, "브라우저를 열지 못해 주소를 복사했다: " + url);
+            JOptionPane.showMessageDialog(this, "브라우저를 열지 못해 주소를 복사했습니다: " + url);
         }
     }
 }

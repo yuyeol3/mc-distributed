@@ -14,7 +14,7 @@ public record GitHubRepo(String owner, String name) {
     public static GitHubRepo parse(String address) {
         Matcher m = ADDRESS.matcher(address.trim());
         if (!m.matches()) {
-            throw new IllegalArgumentException("GitHub repo 주소가 아니다: " + address.trim());
+            throw new IllegalArgumentException("GitHub repo 주소가 아닙니다: " + address.trim());
         }
         return new GitHubRepo(m.group(1), m.group(2));
     }

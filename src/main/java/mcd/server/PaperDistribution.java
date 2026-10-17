@@ -68,10 +68,10 @@ public final class PaperDistribution {
      */
     public static void checkSupported(PaperBuild build, Consumer<String> warn) {
         if (build.compareVersion(MIN_VERSION) < 0) {
-            throw new IllegalStateException("Paper " + build + "는 너무 옛 버전이다. mcd는 " + MIN_VERSION + " 이상이 필요하다(transfer).");
+            throw new IllegalStateException("Paper " + build + "는 너무 옛 버전입니다. mcd는 " + MIN_VERSION + " 이상이 필요합니다(transfer).");
         }
         if (TESTED_VERSIONS.stream().noneMatch(v -> build.version().equals(v) || build.version().startsWith(v + "."))) {
-            warn.accept("Paper " + build + "는 이 버전의 mcd로 시험하지 않은 버전이다. 문제가 생기면 mcd를 업데이트한다.");
+            warn.accept("Paper " + build + "는 이 버전의 mcd로 시험하지 않은 버전입니다. 문제가 생기면 mcd를 업데이트하세요.");
         }
     }
 
@@ -94,11 +94,11 @@ public final class PaperDistribution {
         try {
             HttpResponse<Path> response = http.send(HttpRequest.newBuilder(URI.create(meta.url())).build(), HttpResponse.BodyHandlers.ofFile(partial));
             if (response.statusCode() != 200) {
-                throw new IOException("Paper " + build + "를 받지 못했다: HTTP " + response.statusCode());
+                throw new IOException("Paper " + build + "를 받지 못했습니다: HTTP " + response.statusCode());
             }
             String actual = sha256(partial);
             if (!actual.equals(meta.sha256())) {
-                throw new IOException("Paper " + build + " jar의 해시가 다르다: " + actual);
+                throw new IOException("Paper " + build + " jar의 해시가 다릅니다: " + actual);
             }
             // 다른 mcd가 먼저 받아 두었으면 그것을 쓴다. Windows에서는 그 jar로 Paper가 돌고 있으면 바꿀 수 없다.
             if (!Files.exists(jar) || !sha256(jar).equals(meta.sha256())) {
@@ -117,10 +117,10 @@ public final class PaperDistribution {
         Matcher id = BUILD_ID.matcher(body);
         Matcher channel = CHANNEL.matcher(body);
         if (!id.find() || !channel.find()) {
-            throw new IOException("Paper " + version + "의 최신 빌드를 해석하지 못했다");
+            throw new IOException("Paper " + version + "의 최신 빌드를 해석하지 못했습니다");
         }
         if (!channel.group(1).equals("STABLE")) {
-            throw new IllegalStateException("Paper " + version + "의 최신 빌드는 안정 빌드가 아니다(" + channel.group(1) + "). 빌드 번호를 직접 지정한다.");
+            throw new IllegalStateException("Paper " + version + "의 최신 빌드는 안정 빌드가 아닙니다(" + channel.group(1) + "). 빌드 번호를 직접 지정하세요.");
         }
         return new PaperBuild(version, Integer.parseInt(id.group(1)));
     }
@@ -130,7 +130,7 @@ public final class PaperDistribution {
         Matcher m = JAVA_MINIMUM.matcher(get("/versions/" + build.version()));
         if (m.find() && Integer.parseInt(m.group(1)) > Runtime.version().feature()) {
             throw new IllegalStateException("Paper " + build + "는 Java " + m.group(1) + " 이상이 필요한데 이 mcd에는 Java "
-                    + Runtime.version().feature() + "가 들어 있다. mcd를 업데이트한다.");
+                    + Runtime.version().feature() + "가 들어 있습니다. mcd를 업데이트하세요.");
         }
     }
 
@@ -144,7 +144,7 @@ public final class PaperDistribution {
         Matcher url = URL.matcher(section);
         Matcher sha = SHA256.matcher(section);
         if (!url.find() || !sha.find()) {
-            throw new IOException("Paper " + build + "의 다운로드 정보를 해석하지 못했다");
+            throw new IOException("Paper " + build + "의 다운로드 정보를 해석하지 못했습니다");
         }
         return new Metadata(url.group(1), sha.group(1));
     }
@@ -152,7 +152,7 @@ public final class PaperDistribution {
     private String get(String path) throws IOException, InterruptedException {
         HttpResponse<String> response = http.send(HttpRequest.newBuilder(URI.create(api + path)).build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() == 404) {
-            throw new IllegalStateException("Paper API에 없는 버전이나 빌드다: " + path);
+            throw new IllegalStateException("Paper API에 없는 버전이나 빌드입니다: " + path);
         }
         if (response.statusCode() != 200) {
             throw new IOException("Paper API 오류: HTTP " + response.statusCode() + " " + path);

@@ -37,9 +37,9 @@ class P0ScenarioTest {
     private static final int TTL_SECONDS = 60;
     private static final int RELAY_A = 25611;
     private static final int RELAY_B = 25621;
-    private static final String READY = "[mcd] 준비됐다";
-    private static final String BECAME_HOST = "[mcd] 이 PC가 호스트가 됐다";
-    private static final String RELEASED = "[mcd] 월드를 올리고 락을 반납했다.";
+    private static final String READY = "[mcd] 준비됐습니다";
+    private static final String BECAME_HOST = "[mcd] 이 PC가 호스트가 됐습니다";
+    private static final String RELEASED = "[mcd] 월드를 올리고 락을 반납했습니다.";
     /** stop 직전까지 플레이어가 남아 있으면 반납 대신 넘기기가 될 수 있다. 어느 쪽이든 월드를 올리고 끝난다. */
     private static final String UPLOADED = "[mcd] 월드를 올리고";
 
@@ -82,7 +82,7 @@ class P0ScenarioTest {
 
         // 3. B가 호스트일 때 A의 중계로 접속하면 A는 서버를 띄우지 않고 B로 이어준다.
         McdNode a = McdNode.play("A", remote, dirA, RELAY_A, TTL_SECONDS);
-        a.await(0, "[mcd] 지금 호스트는 B이다", Duration.ofMinutes(1));
+        a.await(0, "[mcd] 지금 호스트는 B입니다", Duration.ofMinutes(1));
         Bot bob = Bot.joinViaRelay("bob", RELAY_A);
         assertFalse(a.printed(BECAME_HOST));
         String list = b.sendAndAwait("list", "players online");
@@ -99,7 +99,7 @@ class P0ScenarioTest {
             a.await(0, BECAME_HOST + "(epoch 3)", Duration.ofSeconds(5));
             assertTrue(alice2.awaitInventory("diamond:5").contains("diamond:5"), "마지막 스냅샷까지의 인벤토리는 남아야 한다");
             try (McdNode b2 = McdNode.play("B", remote, dirB, RELAY_B, TTL_SECONDS)) {
-                b2.await(0, "[mcd] 지금 호스트는 A이다", Duration.ofMinutes(1));
+                b2.await(0, "[mcd] 지금 호스트는 A입니다", Duration.ofMinutes(1));
                 assertTrue(branches(bare).stream().anyMatch(n -> n.startsWith("refs/heads/recovery/B-")), "B의 변경분은 recovery에 있어야 한다");
                 assertEquals("A", remoteLock(bare).owner());
                 b2.send("stop");

@@ -28,7 +28,7 @@ final class AccountDialog extends JDialog {
     private final JTextField name = new JTextField(24);
     private final JPasswordField token = new JPasswordField(24);
     private final JTextField address = new JTextField(24);
-    private final JCheckBox eula = new JCheckBox("Minecraft EULA(https://aka.ms/MinecraftEULA)에 동의한다");
+    private final JCheckBox eula = new JCheckBox("Minecraft EULA(https://aka.ms/MinecraftEULA)에 동의합니다");
     private final JButton ok = new JButton("저장");
     private final Settings base;
     private final boolean firstRun;
@@ -46,12 +46,12 @@ final class AccountDialog extends JDialog {
         form.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
         int row = 0;
         row = Forms.addRow(form, row, "내 이름", name);
-        row = Forms.addNote(form, row, "호스트가 누구인지 다른 사람에게 이 이름으로 보인다.");
+        row = Forms.addNote(form, row, "호스트가 누구인지 다른 사람에게 이 이름으로 보입니다.");
         row = Forms.addRow(form, row, "GitHub 토큰", token);
-        row = Forms.addNote(form, row, "비워 둬도 된다. 새 월드와 초대 코드는 토큰 없이 deploy key를 쓴다. "
-                + "예전 방식(repo collaborator로 초대받은 월드)에만 repo 권한이 있는 토큰이 필요하다.");
+        row = Forms.addNote(form, row, "비워 둬도 됩니다. 새 월드와 초대 코드는 토큰 없이 deploy key를 씁니다. "
+                + "예전 방식(repo collaborator로 초대받은 월드)에만 repo 권한이 있는 토큰이 필요합니다.");
         row = Forms.addRow(form, row, "내 서버 주소", address);
-        row = Forms.addNote(form, row, "tailnet 없이 같은 네트워크에서 쓸 때 다른 PC가 내 서버에 접속할 주소. tailnet을 쓰면 무시된다.");
+        row = Forms.addNote(form, row, "tailnet 없이 같은 네트워크에서 쓸 때 다른 PC가 내 서버에 접속할 주소입니다. tailnet을 쓰면 무시됩니다.");
         if (firstRun) {
             Forms.addWide(form, row, eula);
         }
@@ -88,14 +88,14 @@ final class AccountDialog extends JDialog {
 
     private void submit() {
         if (firstRun && !eula.isSelected()) {
-            JOptionPane.showMessageDialog(this, "서버를 띄우려면 Minecraft EULA에 동의해야 한다.");
+            JOptionPane.showMessageDialog(this, "서버를 띄우려면 Minecraft EULA에 동의해야 합니다.");
             return;
         }
         String nameText = name.getText().trim();
         String tokenText = new String(token.getPassword()).trim();
         String addressText = address.getText().trim();
         if (nameText.isEmpty() || addressText.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "이름과 서버 주소를 비울 수 없다.");
+            JOptionPane.showMessageDialog(this, "이름과 서버 주소는 비워 둘 수 없습니다.");
             return;
         }
         ok.setEnabled(false);
@@ -113,7 +113,7 @@ final class AccountDialog extends JDialog {
                     dispose();
                 } catch (InterruptedException | ExecutionException e) {
                     Throwable cause = e.getCause() == null ? e : e.getCause();
-                    JOptionPane.showMessageDialog(AccountDialog.this, "GitHub 토큰을 확인하지 못했다: " + cause.getMessage());
+                    JOptionPane.showMessageDialog(AccountDialog.this, "GitHub 토큰을 확인하지 못했습니다: " + cause.getMessage());
                     ok.setEnabled(true);
                 }
             }

@@ -28,7 +28,7 @@ class HandoffScenarioTest {
 
     private static final int RELAY_A = 25911;
     private static final int RELAY_B = 25921;
-    private static final String BECAME_HOST = "[mcd] 이 PC가 호스트가 됐다";
+    private static final String BECAME_HOST = "[mcd] 이 PC가 호스트가 됐습니다";
 
     @TempDir
     Path tmp;
@@ -42,7 +42,7 @@ class HandoffScenarioTest {
         InitCommand.run(tmp.resolve("init"), remote, false, Optional.empty(), Bot.PAPER_BUILD, null);
 
         try (McdNode b = McdNode.play("B", remote, tmp.resolve("B"), RELAY_B, 60)) {
-            b.await(0, "[mcd] 준비됐다", Duration.ofMinutes(1));
+            b.await(0, "[mcd] 준비됐습니다", Duration.ofMinutes(1));
             // B의 Paper를 한 번 띄워 둔다. 새 폴더의 첫 기동은 중계 대기 시간(25초)을 넘기기 때문이다.
             int afterWarmup;
             try (Bot warmup = Bot.joinViaRelay("alice", RELAY_B)) {
@@ -50,10 +50,10 @@ class HandoffScenarioTest {
                 afterWarmup = b.mark();
                 warmup.quit();
             }
-            b.await(afterWarmup, "[mcd] 월드를 올리고 락을 반납했다.", Duration.ofMinutes(2));
+            b.await(afterWarmup, "[mcd] 월드를 올리고 락을 반납했습니다.", Duration.ofMinutes(2));
 
             try (McdNode a = McdNode.play("A", remote, tmp.resolve("A"), RELAY_A, 60, RELAY_B)) {
-                a.await(0, "[mcd] 준비됐다", Duration.ofMinutes(1));
+                a.await(0, "[mcd] 준비됐습니다", Duration.ofMinutes(1));
                 try (Bot alice = Bot.joinViaRelay("alice", RELAY_A); Bot bob = Bot.joinViaRelay("bob", RELAY_A)) {
                     a.await(0, BECAME_HOST + "(epoch 2)", Duration.ofSeconds(10));
                     a.sendAndAwait("give alice minecraft:diamond 3", "Gave 3");
@@ -63,7 +63,7 @@ class HandoffScenarioTest {
                     a.send("stop");
                     assertEquals("localhost:" + RELAY_B, alice.awaitTransfer());
                     assertEquals("localhost:" + RELAY_B, bob.awaitTransfer());
-                    a.await(0, "[mcd] 월드를 올리고 서버를 넘겼다.", Duration.ofMinutes(1));
+                    a.await(0, "[mcd] 월드를 올리고 서버를 넘겼습니다.", Duration.ofMinutes(1));
                     b.await(markB, BECAME_HOST + "(epoch 3)", Duration.ofSeconds(30));
 
                     assertEquals("diamond:3", alice.awaitInventory("diamond:3"), "넘긴 월드에서 인벤토리가 이어져야 한다");
@@ -80,7 +80,7 @@ class HandoffScenarioTest {
 
             // 나갔던 A를 다시 켜면 깨끗하게 B를 따라간다.
             try (McdNode a2 = McdNode.play("A", remote, tmp.resolve("A"), RELAY_A, 60, RELAY_B)) {
-                a2.await(0, "[mcd] 지금 호스트는 B이다", Duration.ofMinutes(1));
+                a2.await(0, "[mcd] 지금 호스트는 B입니다", Duration.ofMinutes(1));
                 assertTrue(branches(bare).stream().noneMatch(n -> n.startsWith("refs/heads/recovery/")));
                 a2.send("stop");
             }

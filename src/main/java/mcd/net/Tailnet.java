@@ -67,7 +67,7 @@ public final class Tailnet implements AutoCloseable {
             } catch (IOException ignored) {
                 // 프로세스가 끝나면 스트림이 닫힌다.
             }
-            ready.completeExceptionally(new IOException("mcd-net이 준비되기 전에 끝났다"));
+            ready.completeExceptionally(new IOException("mcd-net이 준비되기 전에 끝났습니다"));
         });
         try {
             String[] parts = ready.get(60, TimeUnit.SECONDS).split(" ");
@@ -77,7 +77,7 @@ public final class Tailnet implements AutoCloseable {
                     new InetSocketAddress(socksAddr.substring(0, colon), Integer.parseInt(socksAddr.substring(colon + 1))));
         } catch (java.util.concurrent.ExecutionException e) {
             process.destroyForcibly();
-            throw new IOException("tailnet에 붙지 못했다", e.getCause());
+            throw new IOException("tailnet에 붙지 못했습니다", e.getCause());
         } catch (TimeoutException e) {
             process.destroyForcibly();
             throw e;
@@ -113,6 +113,6 @@ public final class Tailnet implements AutoCloseable {
         } catch (URISyntaxException e) {
             throw new IOException(e);
         }
-        throw new IOException(name + "를 찾지 못했다. mcd.jar 옆에 두거나 -Dmcd.netHelper로 지정한다.");
+        throw new IOException(name + "를 찾지 못했습니다. mcd.jar 옆에 두거나 -Dmcd.netHelper로 지정하세요.");
     }
 }

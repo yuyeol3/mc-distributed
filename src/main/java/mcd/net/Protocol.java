@@ -40,7 +40,7 @@ final class Protocol {
     static Packet read(InputStream in) throws IOException {
         int length = readVarInt(in);
         if (length <= 0 || length > MAX_PACKET) {
-            throw new IOException("마인크래프트 패킷이 아니다(길이 " + length + ")");
+            throw new IOException("마인크래프트 패킷이 아닙니다(길이 " + length + ")");
         }
         byte[] payload = in.readNBytes(length);
         if (payload.length < length) throw new EOFException();
@@ -53,7 +53,7 @@ final class Protocol {
     }
 
     static Handshake handshake(Packet packet) throws IOException {
-        if (packet.id() != 0x00) throw new IOException("핸드셰이크가 아니다");
+        if (packet.id() != 0x00) throw new IOException("핸드셰이크가 아닙니다");
         ByteArrayInputStream in = new ByteArrayInputStream(packet.body());
         int protocol = readVarInt(in);
         String host = readString(in);
@@ -104,7 +104,7 @@ final class Protocol {
             value |= (b & 0x7F) << shift;
             if ((b & 0x80) == 0) return value;
         }
-        throw new IOException("VarInt가 너무 길다");
+        throw new IOException("VarInt가 너무 깁니다");
     }
 
     static void writeVarInt(OutputStream out, int value) {
@@ -121,7 +121,7 @@ final class Protocol {
 
     static String readString(InputStream in) throws IOException {
         int length = readVarInt(in);
-        if (length < 0 || length > MAX_PACKET) throw new IOException("문자열 길이가 이상하다");
+        if (length < 0 || length > MAX_PACKET) throw new IOException("문자열 길이가 이상합니다");
         return new String(in.readNBytes(length), StandardCharsets.UTF_8);
     }
 

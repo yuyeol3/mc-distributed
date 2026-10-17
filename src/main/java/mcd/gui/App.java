@@ -23,7 +23,7 @@ public final class App {
                 }
                 new MainWindow(settings).start();
             } catch (Exception e) {
-                JOptionPane.showMessageDialog(null, "mcd를 시작하지 못했다: " + e.getMessage());
+                JOptionPane.showMessageDialog(null, "mcd를 시작하지 못했습니다: " + e.getMessage());
                 System.exit(1);
             }
         });

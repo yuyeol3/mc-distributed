@@ -68,6 +68,7 @@ final class MainWindow extends JFrame {
     private final JButton upgrade = new JButton("버전 올리기");
     private final JButton inviteButton = new JButton("친구 초대");
     private final JButton account = new JButton("설정");
+    private final JButton quit = new JButton("종료");
     private final JToggleButton logToggle = new JToggleButton("▸ 로그와 Paper 콘솔");
     private final JPanel logSection = new JPanel(new BorderLayout(0, 6));
     private final JTextArea logArea = new JTextArea(18, 80);
@@ -115,6 +116,8 @@ final class MainWindow extends JFrame {
         actions.add(removeWorld);
 
         logArea.setEditable(false);
+        // 긴 줄 때문에 오른쪽 끝으로 가로 스크롤되면 짧은 줄들이 안 보인다.
+        logArea.setLineWrap(true);
         logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         logArea.setBackground(Theme.LOG_BACKGROUND);
         logArea.setForeground(Theme.LOG_FOREGROUND);
@@ -142,8 +145,7 @@ final class MainWindow extends JFrame {
             top.add(Box.createVerticalStrut(10));
         }
 
-        JButton quit = new JButton("종료");
-        quit.setToolTipText("월드를 저장하고 올린 뒤 끝낸다(호스트라면 접속 중인 사람에게 넘긴다). 창을 닫아도 같다.");
+        quit.setToolTipText("월드를 저장하고 올린 뒤 끝냅니다(호스트라면 접속 중인 사람에게 넘깁니다). 창을 닫아도 같습니다.");
         quit.addActionListener(e -> shutdown());
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         bottom.add(quit);
@@ -193,30 +195,30 @@ final class MainWindow extends JFrame {
     /** 상태 카드를 노드 상태로 갱신한다(EDT, 1초마다). */
     private void refreshStatus() {
         if (closing) {
-            statusPanel.show(Theme.GRAY, "저장하고 끝내는 중", "호스트라면 월드를 올리고 접속 중인 사람에게 넘긴다.");
+            statusPanel.show(Theme.GRAY, "저장하고 끝내는 중", "호스트라면 월드를 올리고 접속 중인 사람에게 넘깁니다.");
             return;
         }
         if (settings.currentWorld().isEmpty()) {
-            statusPanel.show(Theme.GRAY, "월드가 없다", "'+ 월드 추가'로 새 월드를 만들거나 초대 코드로 참가한다.");
+            statusPanel.show(Theme.GRAY, "월드 없음","'+ 월드 추가'로 새 월드를 만들거나 초대 코드로 참가하세요.");
             return;
         }
         Node current = node;
         if (current == null) {
             if (busy) {
-                statusPanel.show(Theme.ORANGE, "준비하는 중", "월드를 받고 서버 파일을 확인한다.");
+                statusPanel.show(Theme.ORANGE, "준비하는 중", "월드를 받고 서버 파일을 확인하고 있습니다.");
             } else {
-                statusPanel.show(Theme.RED, "꺼져 있다", "아래 로그에서 이유를 확인한다. 월드를 다시 고르면 다시 시작한다.");
+                statusPanel.show(Theme.RED, "꺼져 있음","아래 로그에서 이유를 확인하세요. 월드를 다시 고르면 다시 시작합니다.");
             }
             return;
         }
         Node.Status s = current.status();
         switch (s.phase()) {
-            case CHECKING -> statusPanel.show(Theme.GRAY, "원격 확인 중", "누가 호스트인지 확인하고 있다.");
-            case NO_HOST -> statusPanel.show(Theme.GRAY, "호스트 없음", "접속하면 이 PC가 서버가 된다(10~20초).");
-            case OTHER_HOST -> statusPanel.show(Theme.GREEN, "지금 호스트: " + s.host(), "접속하면 그 PC의 서버로 이어진다.");
-            case STARTING -> statusPanel.show(Theme.ORANGE, "이 PC가 서버를 띄우는 중", "잠시 뒤 접속된다. 접속 화면에서 기다린다.");
+            case CHECKING -> statusPanel.show(Theme.GRAY, "원격 확인 중", "누가 호스트인지 확인하고 있습니다.");
+            case NO_HOST -> statusPanel.show(Theme.GRAY, "호스트 없음", "접속하면 이 PC가 서버가 됩니다(10~20초).");
+            case OTHER_HOST -> statusPanel.show(Theme.GREEN, "지금 호스트: " + s.host(), "접속하면 그 PC의 서버로 이어집니다.");
+            case STARTING -> statusPanel.show(Theme.ORANGE, "이 PC가 서버를 띄우는 중", "잠시 뒤 접속됩니다. 접속 화면에서 기다려 주세요.");
             case HOSTING -> statusPanel.show(Theme.GREEN, "이 PC가 호스트",
-                    s.players() == 0 ? "접속한 사람이 없다. 아무도 없으면 5분 뒤 스스로 내려간다." : "접속 " + s.players() + "명");
+                    s.players() == 0 ? "접속한 사람이 없습니다. 아무도 없으면 5분 뒤 스스로 내려갑니다." : "접속 " + s.players() + "명");
         }
     }
 
@@ -225,7 +227,7 @@ final class MainWindow extends JFrame {
     private void startNode() {
         Optional<World> world = settings.currentWorld();
         if (world.isEmpty()) {
-            log("월드가 없다. '월드 추가'로 새 월드를 만들거나 친구의 월드에 참가한다.");
+            log("월드가 없습니다. '월드 추가'로 새 월드를 만들거나 친구의 월드에 참가하세요.");
             return;
         }
         try {
@@ -236,8 +238,8 @@ final class MainWindow extends JFrame {
             opened.start();
             node = opened;
         } catch (Exception e) {
-            log("시작하지 못했다: " + e.getMessage());
-            SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "시작하지 못했다: " + e.getMessage()));
+            log("시작하지 못했습니다: " + e.getMessage());
+            SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "시작하지 못했습니다: " + e.getMessage()));
         }
     }
 
@@ -280,6 +282,10 @@ final class MainWindow extends JFrame {
         upgrade.setEnabled(enabled && hasWorld);
         inviteButton.setEnabled(enabled && hasWorld);
         account.setEnabled(enabled);
+        // 컨트롤을 끈 동안 포커스가 다른 버튼(주로 종료)으로 넘어간다. 다시 켜면 월드 선택으로 돌려놓는다.
+        if (enabled && (getFocusOwner() == null || getFocusOwner() == quit)) {
+            worldBox.requestFocusInWindow();
+        }
     }
 
     // ---- 월드와 설정 (EDT) ----
@@ -301,7 +307,7 @@ final class MainWindow extends JFrame {
         if (settings.currentWorld().map(chosen::equals).orElse(false)) return;
         if (!save(settings.withCurrent(chosen.remote()))) return;
         worldBox.setToolTipText(chosen.remote());
-        log("월드를 " + chosen.name() + "(으)로 바꾼다.");
+        log("월드를 " + chosen.name() + "(으)로 바꿉니다.");
         inControl(this::restartNode);
     }
 
@@ -316,8 +322,8 @@ final class MainWindow extends JFrame {
         Optional<World> current = settings.currentWorld();
         if (current.isEmpty()) return;
         World world = current.get();
-        int answer = JOptionPane.showConfirmDialog(this, "월드 " + world.name() + "을(를) 목록에서 뺀다.\n"
-                + "GitHub의 월드와 이 PC의 사본(" + world.dir() + ")은 지우지 않으므로 나중에 다시 추가할 수 있다.",
+        int answer = JOptionPane.showConfirmDialog(this, "월드 " + world.name() + "을(를) 목록에서 뺍니다.\n"
+                + "GitHub의 월드와 이 PC의 사본(" + world.dir() + ")은 지우지 않으므로 나중에 다시 추가할 수 있습니다.",
                 "목록에서 빼기", JOptionPane.OK_CANCEL_OPTION);
         if (answer != JOptionPane.OK_OPTION || !save(settings.withoutWorld(world.remote()))) return;
         refreshWorlds();
@@ -337,12 +343,12 @@ final class MainWindow extends JFrame {
         }
         Object target = JOptionPane.showInputDialog(this,
                 "월드 " + world.name() + "의 지금 버전: Paper " + now + "\n"
-                        + "올릴 버전(예: 26.2, 또는 빌드까지 26.2-133). 버전만 쓰면 그 버전의 최신 안정 빌드를 쓴다.",
+                        + "올릴 버전(예: 26.2, 또는 빌드까지 26.2-133). 버전만 쓰면 그 버전의 최신 안정 빌드를 씁니다.",
                 "월드 버전 올리기", JOptionPane.QUESTION_MESSAGE, null, null, PaperDistribution.DEFAULT_BUILD.version());
         if (target == null || target.toString().isBlank()) return;
         int answer = JOptionPane.showConfirmDialog(this,
-                "월드를 " + target.toString().trim() + "(으)로 올리면 되돌릴 수 없고, 모두 그 버전의 마인크래프트로 접속해야 한다.\n"
-                        + "누가 플레이 중이면 올릴 수 없다. 이 PC가 호스트라면 저장하고 넘긴 뒤 올린다. 계속할까?",
+                "월드를 " + target.toString().trim() + "(으)로 올리면 되돌릴 수 없고, 모두 그 버전의 마인크래프트로 접속해야 합니다.\n"
+                        + "누가 플레이 중이면 올릴 수 없습니다. 이 PC가 호스트라면 저장하고 넘긴 뒤 올립니다. 계속할까요?",
                 "월드 버전 올리기", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
         if (answer != JOptionPane.OK_OPTION) return;
         String version = target.toString().trim();
@@ -352,8 +358,8 @@ final class MainWindow extends JFrame {
                 UpgradeCommand.run(world.dir(), world.remote(), settings.nodeName(), version, CACHE, auth(world),
                         PaperDistribution.official(), this::log);
             } catch (Exception e) {
-                log("버전을 올리지 못했다: " + e.getMessage());
-                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "버전을 올리지 못했다: " + e.getMessage()));
+                log("버전을 올리지 못했습니다: " + e.getMessage());
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "버전을 올리지 못했습니다: " + e.getMessage()));
             }
             startNode();
         });
@@ -369,16 +375,16 @@ final class MainWindow extends JFrame {
         World world = current.get();
         try {
             if (world.deployKey().isEmpty()) {
-                world = changeKey(world, "초대 코드를 만들려면 이 월드의 GitHub repo에 deploy key를 한 번 등록해야 한다.\n"
-                        + "등록하면 이 PC도 토큰 대신 그 키로 접속한다. 이 PC의 tailnet 기기는 한 번 새로 등록된다.");
+                world = changeKey(world, "초대 코드를 만들려면 이 월드의 GitHub repo에 deploy key를 한 번 등록해야 합니다.\n"
+                        + "등록하면 이 PC도 토큰 대신 그 키로 접속합니다. 이 PC의 tailnet 기기는 한 번 새로 등록됩니다.");
             } else {
                 String[] options = {"초대 코드 복사", "키 바꾸기(초대 끊기)", "취소"};
-                int choice = JOptionPane.showOptionDialog(this, "월드 " + world.name() + "의 초대 코드를 복사하거나, 키를 바꿔 지금까지의 초대를 끊는다.",
+                int choice = JOptionPane.showOptionDialog(this, "월드 " + world.name() + "의 초대 코드를 복사하거나, 키를 바꿔 지금까지의 초대를 끊을 수 있습니다.",
                         "친구 초대", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
                 if (choice == 1) {
-                    world = changeKey(world, "새 키를 만들어 등록하고 이 PC도 새 키로 바꾼다.\n"
-                            + "그 뒤 GitHub repo의 Settings → Deploy keys에서 예전 mcd 키를 지워야 지금까지의 초대 코드가 끊긴다.\n"
-                            + "계속 함께할 친구에게는 새 초대 코드를 보낸다.");
+                    world = changeKey(world, "새 키를 만들어 등록하고 이 PC도 새 키로 바꿉니다.\n"
+                            + "그 뒤 GitHub repo의 Settings → Deploy keys에서 예전 mcd 키를 지워야 지금까지의 초대 코드가 끊깁니다.\n"
+                            + "계속 함께할 친구에게는 새 초대 코드를 보내 주세요.");
                 } else if (choice != 0) {
                     return;
                 }
@@ -390,13 +396,13 @@ final class MainWindow extends JFrame {
             text.setLineWrap(true);
             text.setEditable(false);
             JOptionPane.showMessageDialog(this, new Object[] {
-                    "초대 코드를 클립보드에 복사했다. 친구에게 보내면 '월드 추가 → 친구의 월드에 참가'에 붙여 넣는다.",
+                    "초대 코드를 클립보드에 복사했습니다. 친구는 받은 코드를 '월드 추가 → 친구의 월드에 참가'에 붙여 넣으면 됩니다.",
                     new JScrollPane(text),
-                    "이 코드를 가진 사람은 누구나 이 월드를 읽고 쓸 수 있다. 공개된 곳에 올리지 않는다.\n"
-                            + "초대를 끊으려면 GitHub repo의 Settings → Deploy keys에서 mcd 키를 지우고 다시 초대한다(남은 사람도 새 코드가 필요하다)."},
+                    "이 코드를 가진 사람은 누구나 이 월드를 읽고 쓸 수 있습니다. 공개된 곳에 올리지 마세요.\n"
+                            + "초대를 끊으려면 '친구 초대 → 키 바꾸기'로 새 키를 등록한 뒤 GitHub에서 예전 mcd 키를 지우세요(남은 사람도 새 코드가 필요합니다)."},
                     "친구 초대: " + world.name(), JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "초대 코드를 만들지 못했다: " + e.getMessage());
+            JOptionPane.showMessageDialog(this, "초대 코드를 만들지 못했습니다: " + e.getMessage());
         }
     }
 
@@ -406,7 +412,7 @@ final class MainWindow extends JFrame {
      */
     private World changeKey(World world, String explanation) throws Exception {
         GitHubRepo repo = GitHubRepo.parse(world.remote());
-        int answer = JOptionPane.showConfirmDialog(this, explanation + "\n노드를 다시 켠다(이 PC가 호스트라면 저장하고 넘긴다). 계속할까?",
+        int answer = JOptionPane.showConfirmDialog(this, explanation + "\n노드를 다시 켭니다(이 PC가 호스트라면 저장하고 넘깁니다). 계속할까요?",
                 "deploy key: " + repo, JOptionPane.OK_CANCEL_OPTION);
         if (answer != JOptionPane.OK_OPTION) return null;
         DeployKey key = DeployKey.generate();
@@ -422,7 +428,7 @@ final class MainWindow extends JFrame {
         Settings next = AccountDialog.edit(this, settings);
         if (next == null || !save(next)) return;
         setTitle("mcd - " + next.nodeName());
-        log("설정을 바꿨다. 노드를 다시 시작한다.");
+        log("설정을 바꿨습니다. 노드를 다시 시작합니다.");
         inControl(this::restartNode);
     }
 
@@ -432,7 +438,7 @@ final class MainWindow extends JFrame {
             settings = next;
             return true;
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "설정을 저장하지 못했다: " + e.getMessage());
+            JOptionPane.showMessageDialog(this, "설정을 저장하지 못했습니다: " + e.getMessage());
             return false;
         }
     }
@@ -455,19 +461,19 @@ final class MainWindow extends JFrame {
             Updater updater = Updater.official();
             Optional<Updater.Release> release = updater.newerThan(current.get());
             if (release.isEmpty()) return;
-            String question = "새 버전 " + release.get().version() + "이(가) 있다(지금 " + current.get() + "). 지금 업데이트할까?\n"
-                    + "월드를 저장하고 mcd를 껐다가, 바꾼 뒤 다시 켠다. 호스트라면 접속 중인 사람은 다른 PC로 옮겨 간다.";
+            String question = "새 버전 " + release.get().version() + "이(가) 있습니다(지금 " + current.get() + "). 지금 업데이트할까요?\n"
+                    + "월드를 저장하고 mcd를 껐다가, 바꾼 뒤 다시 켭니다. 호스트라면 접속 중인 사람은 다른 PC로 옮겨 갑니다.";
             int[] answer = new int[1];
             SwingUtilities.invokeAndWait(() ->
                     answer[0] = JOptionPane.showConfirmDialog(this, question, "mcd 업데이트", JOptionPane.YES_NO_OPTION));
             if (answer[0] != JOptionPane.YES_OPTION) return;
-            log("새 버전 " + release.get().version() + "을(를) 받는 중이다.");
+            log("새 버전 " + release.get().version() + "을(를) 받는 중입니다.");
             Path newApp = updater.download(release.get());
             updater.launchReplacer(newApp, installDir.get(), Optional.of(installDir.get().resolve("mcd.exe")));
-            log("업데이트를 준비했다. mcd를 껐다가 다시 켠다.");
+            log("업데이트를 준비했습니다. mcd를 껐다가 다시 켭니다.");
             shutdown();
         } catch (Exception e) {
-            log("업데이트하지 못했다: " + e.getMessage());
+            log("업데이트하지 못했습니다: " + e.getMessage());
         }
     }
 
@@ -478,10 +484,10 @@ final class MainWindow extends JFrame {
         command.setText("");
         try {
             if (!current.consoleCommand(text)) {
-                log("이 PC는 지금 호스트가 아니라서 Paper 명령을 보낼 수 없다.");
+                log("이 PC는 지금 호스트가 아니라서 Paper 명령을 보낼 수 없습니다.");
             }
         } catch (Exception e) {
-            log("명령을 보내지 못했다: " + e.getMessage());
+            log("명령을 보내지 못했습니다: " + e.getMessage());
         }
     }
 

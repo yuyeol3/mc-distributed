@@ -89,16 +89,16 @@ public final class Updater {
         Path zip = dir.resolve(ZIP);
         HttpResponse<Path> response = http.send(HttpRequest.newBuilder(URI.create(release.zipUrl())).build(),
                 HttpResponse.BodyHandlers.ofFile(zip));
-        if (response.statusCode() != 200) throw new IOException("업데이트를 받지 못했다: HTTP " + response.statusCode());
+        if (response.statusCode() != 200) throw new IOException("업데이트를 받지 못했습니다: HTTP " + response.statusCode());
         String actual = sha256(zip);
         if (!actual.equals(expected)) {
             Files.delete(zip);
-            throw new IOException("받은 업데이트의 해시가 다르다(" + actual + "). 다시 시도한다.");
+            throw new IOException("받은 업데이트의 해시가 다릅니다(" + actual + "). 다시 시도하세요.");
         }
         Path extracted = dir.resolve("files");
         unzip(zip, extracted);
         Path app = extracted.resolve("mcd");
-        if (!Files.exists(app.resolve("mcd.exe"))) throw new IOException("업데이트에 mcd.exe가 없다");
+        if (!Files.exists(app.resolve("mcd.exe"))) throw new IOException("업데이트에 mcd.exe가 없습니다");
         return app;
     }
 
@@ -108,7 +108,7 @@ public final class Updater {
      */
     public void launchReplacer(Path newApp, Path installDir, Optional<Path> restart) throws IOException {
         if (!Files.exists(installDir.resolve("mcd.exe")) || !Files.exists(installDir.resolve("app").resolve("mcd.cfg"))) {
-            throw new IllegalStateException(installDir + "는 mcd 설치 폴더가 아니다");
+            throw new IllegalStateException(installDir + "는 mcd 설치 폴더가 아닙니다");
         }
         Files.createDirectories(workDir);
         Path script = workDir.resolve("apply-update.ps1");
@@ -155,7 +155,7 @@ public final class Updater {
     private String get(String url) throws IOException, InterruptedException {
         HttpResponse<String> response = http.send(HttpRequest.newBuilder(URI.create(url))
                 .header("Accept", "application/vnd.github+json").build(), HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) throw new IOException("업데이트 정보를 받지 못했다: HTTP " + response.statusCode() + " " + url);
+        if (response.statusCode() != 200) throw new IOException("업데이트 정보를 받지 못했습니다: HTTP " + response.statusCode() + " " + url);
         return response.body();
     }
 
@@ -165,7 +165,7 @@ public final class Updater {
         try (ZipInputStream in = new ZipInputStream(Files.newInputStream(zip))) {
             for (ZipEntry e; (e = in.getNextEntry()) != null; ) {
                 Path out = root.resolve(e.getName()).normalize();
-                if (!out.startsWith(root)) throw new IOException("zip 안의 경로가 이상하다: " + e.getName());
+                if (!out.startsWith(root)) throw new IOException("zip 안의 경로가 이상합니다: " + e.getName());
                 if (e.isDirectory()) {
                     Files.createDirectories(out);
                 } else {

@@ -22,13 +22,13 @@ final class Json {
         Json p = new Json(text);
         Object value = p.value();
         p.skipSpace();
-        if (p.i != p.s.length()) throw p.error("끝에 남은 내용이 있다");
+        if (p.i != p.s.length()) throw p.error("끝에 남은 내용이 있습니다");
         return value;
     }
 
     private Object value() {
         skipSpace();
-        if (i >= s.length()) throw error("값이 없다");
+        if (i >= s.length()) throw error("값이 없습니다");
         char c = s.charAt(i);
         return switch (c) {
             case '{' -> object();
@@ -75,7 +75,7 @@ final class Json {
         expect('"');
         StringBuilder out = new StringBuilder();
         while (true) {
-            if (i >= s.length()) throw error("문자열이 끝나지 않았다");
+            if (i >= s.length()) throw error("문자열이 끝나지 않았습니다");
             char c = s.charAt(i++);
             if (c == '"') return out.toString();
             if (c != '\\') {
@@ -124,7 +124,7 @@ final class Json {
     }
 
     private void expect(char c) {
-        if (!peek(c)) throw error("'" + c + "'가 와야 한다");
+        if (!peek(c)) throw error("'" + c + "'가 와야 합니다");
     }
 
     private IllegalArgumentException error(String message) {

@@ -23,7 +23,7 @@ public final class ParentWatchdog {
 
     public static void premain(String args) {
         ProcessHandle.current().parent().ifPresent(parent -> parent.onExit().thenRun(() -> {
-            System.out.println("[mcd] mcd 프로세스가 끝나서 서버를 내린다.");
+            System.out.println("[mcd] mcd 프로세스가 끝나서 서버를 내립니다.");
             System.exit(0);
         }));
     }
@@ -39,7 +39,7 @@ public final class ParentWatchdog {
              JarOutputStream jarOut = new JarOutputStream(out, manifest);
              InputStream classBytes = ParentWatchdog.class.getClassLoader().getResourceAsStream(CLASS_FILE)) {
             if (classBytes == null) {
-                throw new IOException(CLASS_FILE + "를 찾지 못했다");
+                throw new IOException(CLASS_FILE + "를 찾지 못했습니다");
             }
             jarOut.putNextEntry(new JarEntry(CLASS_FILE));
             classBytes.transferTo(jarOut);

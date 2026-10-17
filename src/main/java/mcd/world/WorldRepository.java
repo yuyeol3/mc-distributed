@@ -26,7 +26,7 @@ public final class WorldRepository {
     public static void create(Path dir, String remote, boolean onlineMode, Optional<NetworkConfig> network,
                               PaperBuild paperBuild, TransportConfigCallback auth) throws Exception {
         if (Files.exists(dir)) {
-            throw new IllegalStateException(dir + "가 이미 있다. 새 폴더를 지정해야 한다.");
+            throw new IllegalStateException(dir + "가 이미 있습니다. 새 폴더를 지정해야 합니다.");
         }
         try (Git git = Git.init().setInitialBranch("main").setDirectory(dir.toFile()).call()) {
             WorldTemplate.writeInitialFiles(dir, onlineMode, paperBuild);
@@ -38,7 +38,7 @@ public final class WorldRepository {
             Iterable<PushResult> results = git.push().setRemote("origin").add("main").setTransportConfigCallback(auth).call();
             RemoteRefUpdate.Status status = results.iterator().next().getRemoteUpdate("refs/heads/main").getStatus();
             if (status != RemoteRefUpdate.Status.OK) {
-                throw new IllegalStateException("원격에 올리지 못했다(" + status + "). 원격 repo가 비어 있어야 한다.");
+                throw new IllegalStateException("원격에 올리지 못했습니다(" + status + "). 원격 repo가 비어 있어야 합니다.");
             }
             // 이후 fetch가 원격 main을 refs/remotes/origin/main으로 받도록 추적 설정을 맞춘다.
             git.fetch().setRemote("origin").setTransportConfigCallback(auth).call();

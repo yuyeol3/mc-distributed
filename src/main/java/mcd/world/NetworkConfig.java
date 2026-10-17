@@ -26,7 +26,7 @@ public record NetworkConfig(String controlUrl, String authKey) {
         }
         String key = p.getProperty("authKey", "").trim();
         if (key.isEmpty()) {
-            throw new IllegalStateException(file + "에 authKey가 없다");
+            throw new IllegalStateException(file + "에 authKey가 없습니다");
         }
         return Optional.of(new NetworkConfig(p.getProperty("controlUrl", "").trim(), key));
     }

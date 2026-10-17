@@ -78,7 +78,7 @@ public final class PaperServer implements AutoCloseable {
             }
         }
         if (process.waitFor() != 0) {
-            throw new IOException("Paperclip이 종료 코드 " + process.exitValue() + "로 끝났다");
+            throw new IOException("Paperclip이 종료 코드 " + process.exitValue() + "로 끝났습니다");
         }
     }
 
@@ -114,7 +114,7 @@ public final class PaperServer implements AutoCloseable {
     public int onlinePlayers() throws IOException, TimeoutException {
         Matcher m = PLAYERS.matcher(commandAndAwait("list", "players online"));
         if (!m.find()) {
-            throw new IllegalStateException("list 출력을 해석하지 못했다");
+            throw new IllegalStateException("list 출력을 해석하지 못했습니다");
         }
         return Integer.parseInt(m.group(1));
     }
@@ -157,7 +157,7 @@ public final class PaperServer implements AutoCloseable {
     public void stop(Duration timeout) throws IOException, InterruptedException, TimeoutException {
         command("stop");
         if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
-            throw new TimeoutException("Paper가 " + timeout + " 안에 종료되지 않았다");
+            throw new TimeoutException("Paper가 " + timeout + " 안에 종료되지 않았습니다");
         }
     }
 
@@ -197,7 +197,7 @@ public final class PaperServer implements AutoCloseable {
                 }
                 long remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
                 if (remaining <= 0 || !process.isAlive()) {
-                    throw new TimeoutException("Paper 로그에서 '" + expected + "'를 찾지 못했다");
+                    throw new TimeoutException("Paper 로그에서 '" + expected + "'를 찾지 못했습니다");
                 }
                 try {
                     lines.wait(Math.min(remaining, 1000));

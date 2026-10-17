@@ -65,7 +65,7 @@ public final class DeployKey {
     /** {@link #encode}의 결과에서 키를 되살린다. */
     public static DeployKey decode(String encoded) throws GeneralSecurityException {
         String[] parts = encoded.trim().split("\\.");
-        if (parts.length != 2) throw new GeneralSecurityException("deploy key 형식이 아니다");
+        if (parts.length != 2) throw new GeneralSecurityException("deploy key 형식이 아닙니다");
         Base64.Decoder b64 = Base64.getUrlDecoder();
         KeyFactory factory = KeyFactory.getInstance("EC");
         try {
@@ -73,7 +73,7 @@ public final class DeployKey {
                     factory.generatePublic(new X509EncodedKeySpec(b64.decode(parts[1]))),
                     factory.generatePrivate(new PKCS8EncodedKeySpec(b64.decode(parts[0])))));
         } catch (IllegalArgumentException e) {
-            throw new GeneralSecurityException("deploy key 형식이 아니다", e);
+            throw new GeneralSecurityException("deploy key 형식이 아닙니다", e);
         }
     }
 

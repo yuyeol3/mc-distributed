@@ -26,7 +26,7 @@ public final class GitHubClient {
     /** 토큰 주인의 로그인 이름. 토큰이 틀리면 예외. */
     public String login() throws IOException, InterruptedException {
         HttpResponse<String> response = send(request("/user").GET().build());
-        expect(response, 200, "토큰을 확인하지 못했다");
+        expect(response, 200, "토큰을 확인하지 못했습니다");
         return field(response.body(), "login");
     }
 
@@ -51,7 +51,7 @@ public final class GitHubClient {
     /** 응답에서 최상위 문자열 필드 하나를 꺼낸다. 필요한 필드가 두세 개뿐이라 JSON 라이브러리는 쓰지 않는다. */
     static String field(String json, String name) throws IOException {
         Matcher m = Pattern.compile("\"" + Pattern.quote(name) + "\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").matcher(json);
-        if (!m.find()) throw new IOException("응답에 " + name + "이 없다");
+        if (!m.find()) throw new IOException("응답에 " + name + "이 없습니다");
         return m.group(1).replace("\\/", "/").replace("\\\"", "\"").replace("\\\\", "\\");
     }
 }

@@ -96,7 +96,7 @@ final class HostSession {
                 release();
             }
         } catch (Exception e) {
-            log.accept("호스트 관리 중 오류: " + e + ". 락은 TTL이 지나면 다른 노드가 이어받는다.");
+            log.accept("호스트 관리 중 오류: " + e + ". 락은 TTL이 지나면 다른 노드가 이어받습니다.");
         } finally {
             paper.close();
             ended.countDown();
@@ -114,18 +114,18 @@ final class HostSession {
 
         while (!stopped() && paper.isAlive()) {
             if (lock.shouldStop()) {
-                log.accept("락을 갱신하지 못한 채 lease가 끝나간다. 다른 노드가 이어받을 수 있으니 서버를 내린다.");
+                log.accept("락을 갱신하지 못한 채 lease가 끝나 갑니다. 다른 노드가 이어받을 수 있으니 서버를 내립니다.");
                 paper.stop(Duration.ofMinutes(2));
                 return false;
             }
             Instant now = clock.instant();
             if (!paper.isReady()) {
                 if (!now.isBefore(started.plus(PAPER_START_TIMEOUT))) {
-                    throw new IllegalStateException("Paper가 " + PAPER_START_TIMEOUT + " 안에 기동하지 않았다");
+                    throw new IllegalStateException("Paper가 " + PAPER_START_TIMEOUT + " 안에 기동하지 않았습니다");
                 }
             } else {
                 if (!announced) {
-                    log.accept("Paper가 준비됐다(기동 " + seconds(started, now) + ").");
+                    log.accept("Paper가 준비됐습니다(기동 " + seconds(started, now) + ").");
                     announced = true;
                     lastPlayerSeen = now;
                 }
@@ -135,7 +135,7 @@ final class HostSession {
                     if (players > 0) {
                         lastPlayerSeen = now;
                     } else if (!now.isBefore(lastPlayerSeen.plus(timing.idle()))) {
-                        log.accept("아무도 접속하지 않은 지 " + timing.idle().toSeconds() + "초가 지나 서버를 내린다.");
+                        log.accept("아무도 접속하지 않은 지 " + timing.idle().toSeconds() + "초가 지나 서버를 내립니다.");
                         break;
                     }
                 }
@@ -157,12 +157,12 @@ final class HostSession {
                 lastHeartbeat = now;
             }
             if (outcome == PushOutcome.REJECTED) {
-                log.accept("다른 노드가 락을 가져갔다. 월드가 갈라지지 않도록 서버를 내린다.");
+                log.accept("다른 노드가 락을 가져갔습니다. 월드가 갈라지지 않도록 서버를 내립니다.");
                 paper.stop(Duration.ofMinutes(2));
                 return false;
             }
             if (outcome == PushOutcome.FAILED) {
-                log.accept("원격 저장소에 올리지 못했다. 다음 주기에 다시 시도한다.");
+                log.accept("원격 저장소에 올리지 못했습니다. 다음 주기에 다시 시도합니다.");
             }
             stopRequested.await(1, TimeUnit.SECONDS);
         }
@@ -170,7 +170,7 @@ final class HostSession {
         // Windows에서는 Ctrl+C가 Paper에도 전달된다. Paper는 저장하고 끝나지만 종료 코드가 0이 아니므로, 종료를 요청한 경우는 정상으로 본다.
         if (!paper.isAlive() && !stopped() && !paper.exitedCleanly()) {
             // 정상 종료(stop)를 거치지 않았으므로 쓰다 만 월드 파일이 있을 수 있다. 마지막 스냅샷까지만 공유한다.
-            log.accept("Paper가 예기치 않게 종료됐다. 마지막 스냅샷으로 락을 반납하고, 남은 변경은 다음 실행 때 recovery 브랜치에 보관한다.");
+            log.accept("Paper가 예기치 않게 종료됐습니다. 마지막 스냅샷으로 락을 반납하고, 남은 변경은 다음 실행 때 recovery 브랜치에 보관합니다.");
             lock.releaseWithoutWorld();
             return false;
         }
@@ -190,24 +190,24 @@ final class HostSession {
      * 전용 구간이 필요 없다. 반납에 실패하면 false를 돌려주고 평소처럼 종료한다.
      */
     private boolean handOver() throws Exception {
-        log.accept("다른 사람이 접속해 있어서 서버를 넘긴다.");
+        log.accept("다른 사람이 접속해 있어서 서버를 넘깁니다.");
         paper.command("say 호스트가 나가서 서버를 옮깁니다. 잠시 뒤 자동으로 다시 접속됩니다.");
         Instant start = clock.instant();
         paper.pauseSavingAndFlush();
         // 반납 push가 끝날 때까지(5~7초, 실험 E7)의 플레이는 넘긴 월드에 들어가지 않으므로 그동안 얼려 둔다.
         paper.freezePlayers("서버를 옮기는 중");
         if (lock.release() != PushOutcome.OK) {
-            log.accept("락을 반납하지 못해서 서버를 넘기지 못했다.");
+            log.accept("락을 반납하지 못해서 서버를 넘기지 못했습니다.");
             paper.unfreezePlayers();
             paper.resumeSaving();
             return false;
         }
-        log.accept("월드와 락을 올렸다(저장과 push " + seconds(start, clock.instant()) + "). 플레이어를 보낸다.");
+        log.accept("월드와 락을 올렸습니다(저장과 push " + seconds(start, clock.instant()) + "). 플레이어를 보냅니다.");
         paper.command("transfer localhost " + handoffPort + " @a");
         Thread.sleep(2000);
         paper.stop(Duration.ofMinutes(2));
         lock.discardLocalChanges();
-        log.accept("월드를 올리고 서버를 넘겼다.");
+        log.accept("월드를 올리고 서버를 넘겼습니다.");
         logUsage();
         return true;
     }
@@ -216,17 +216,17 @@ final class HostSession {
         for (int attempt = 1; attempt <= 3; attempt++) {
             PushOutcome outcome = lock.release();
             if (outcome == PushOutcome.OK) {
-                log.accept("월드를 올리고 락을 반납했다.");
+                log.accept("월드를 올리고 락을 반납했습니다.");
                 logUsage();
                 return;
             }
             if (outcome == PushOutcome.REJECTED) {
-                log.accept("그새 다른 노드가 락을 가져갔다. 이번 변경은 다음 실행 때 recovery 브랜치에 보관된다.");
+                log.accept("그새 다른 노드가 락을 가져갔습니다. 이번 변경은 다음 실행 때 recovery 브랜치에 보관됩니다.");
                 return;
             }
             Thread.sleep(5000);
         }
-        log.accept("월드를 올리지 못했다. 다음에 mcd play를 실행하면 다시 올린다.");
+        log.accept("월드를 올리지 못했습니다. 다음에 mcd play를 실행하면 다시 올립니다.");
     }
 
     /** GitHub 사용량을 수치로 보기 위해 호스트 기간이 끝날 때 push 횟수와 로컬 저장소 크기를 남긴다. */

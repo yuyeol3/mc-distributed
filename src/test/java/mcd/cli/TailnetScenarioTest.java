@@ -39,13 +39,13 @@ class TailnetScenarioTest {
              McdNode b = McdNode.play("B", remote, tmp.resolve("B"), 25721, 60)) {
             String addressA = a.await(0, "[mcd] tailnet 주소는", Duration.ofMinutes(1));
             b.await(0, "[mcd] tailnet 주소는", Duration.ofMinutes(1));
-            a.await(0, "[mcd] 준비됐다", Duration.ofMinutes(1));
-            b.await(0, "[mcd] 준비됐다", Duration.ofMinutes(1));
+            a.await(0, "[mcd] 준비됐습니다", Duration.ofMinutes(1));
+            b.await(0, "[mcd] 준비됐습니다", Duration.ofMinutes(1));
             assertTrue(addressA.contains("100."), "tailnet IP여야 한다: " + addressA);
 
             try (Bot alice = Bot.joinViaRelay("alice", 25711)) {
-                assertTrue(a.printed("[mcd] 이 PC가 호스트가 됐다"));
-                b.await(0, "[mcd] 지금 호스트는 A이다", Duration.ofSeconds(30));
+                assertTrue(a.printed("[mcd] 이 PC가 호스트가 됐습니다"));
+                b.await(0, "[mcd] 지금 호스트는 A입니다", Duration.ofSeconds(30));
                 try (Bot bob = Bot.joinViaRelay("bob", 25721)) {
                     String players = a.sendAndAwait("list", "players online");
                     assertTrue(players.contains("alice") && players.contains("bob"), "B의 중계가 tailnet으로 A에 이어줘야 한다: " + players);
@@ -56,7 +56,7 @@ class TailnetScenarioTest {
             int m = a.mark();
             a.send("stop");
             b.send("stop");
-            a.await(m, "[mcd] 월드를 올리고 락을 반납했다.", Duration.ofMinutes(2));
+            a.await(m, "[mcd] 월드를 올리고 락을 반납했습니다.", Duration.ofMinutes(2));
         }
     }
 }
