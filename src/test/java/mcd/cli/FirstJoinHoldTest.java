@@ -17,8 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * 서버 목록 확인(ping)은 호스트를 띄우지 않고 중계가 답한다. 새 폴더의 첫 기동처럼 30초가 넘게 걸려도
- * 중계가 클라이언트를 붙잡아 두어 한 번의 접속으로 들어간다.
+ * 서버 목록 확인(ping)은 호스트를 띄우지 않고 중계가 답한다. 새 폴더의 첫 호스트도 중계가 기동이 끝날 때까지
+ * 클라이언트를 붙잡아 두어 한 번의 접속으로 들어간다. 노드를 열 때 Paper를 미리 패치하므로 첫 기동도 평소 기동
+ * 시간만 걸린다(출력의 first join 시간). 30초를 넘는 붙잡기 자체는 RelayTest가 확인한다.
  * 주의: 봇(minecraft-protocol)은 로그인 단계에 자체 시간 제한이 없어서, 바닐라 클라이언트의 30초 제한까지
  * 넘는지는 진짜 클라이언트로 확인해야 한다.
  */

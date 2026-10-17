@@ -119,7 +119,7 @@ final class HostSession {
                 }
             } else {
                 if (!announced) {
-                    log.accept("Paper가 준비됐다.");
+                    log.accept("Paper가 준비됐다(기동 " + seconds(started, now) + ").");
                     announced = true;
                     lastPlayerSeen = now;
                 }
@@ -185,12 +185,14 @@ final class HostSession {
     private boolean handOver() throws Exception {
         log.accept("다른 사람이 접속해 있어서 서버를 넘긴다.");
         paper.command("say 호스트가 나가서 서버를 옮깁니다. 잠시 뒤 자동으로 다시 접속됩니다.");
+        Instant start = clock.instant();
         paper.pauseSavingAndFlush();
         if (lock.release() != PushOutcome.OK) {
             log.accept("락을 반납하지 못해서 서버를 넘기지 못했다.");
             paper.resumeSaving();
             return false;
         }
+        log.accept("월드와 락을 올렸다(저장과 push " + seconds(start, clock.instant()) + "). 플레이어를 보낸다.");
         paper.command("transfer localhost " + handoffPort + " @a");
         Thread.sleep(2000);
         paper.stop(Duration.ofMinutes(2));
@@ -230,5 +232,10 @@ final class HostSession {
 
     private boolean stopped() {
         return stopRequested.getCount() == 0;
+    }
+
+    /** 이관 시간을 구간별로 보기 위해 로그에 남기는 경과 시간. */
+    static String seconds(Instant from, Instant to) {
+        return String.format(java.util.Locale.ROOT, "%.1f초", Duration.between(from, to).toMillis() / 1000.0);
     }
 }

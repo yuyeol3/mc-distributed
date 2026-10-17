@@ -61,6 +61,27 @@ public final class PaperServer implements AutoCloseable {
         return new PaperServer(process, echo);
     }
 
+    /**
+     * 서버는 띄우지 않고 Paperclip이 Mojang jar를 받아 패치만 해 두게 한다(serverDir의 cache/, libraries/, versions/).
+     * 처음이면 20초 가까이, 이미 했으면 1초 안쪽이 걸린다. 호스트가 된 뒤 첫 기동에서 이 시간을 빼려고 미리 한다.
+     */
+    public static void patch(Path serverDir, Path paperJar, PrintStream echo) throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(javaExecutable(), "-Dpaperclip.patchonly=true", "-jar",
+                paperJar.toAbsolutePath().toString())
+                .directory(serverDir.toFile())
+                .redirectErrorStream(true)
+                .start();
+        try (BufferedReader reader = process.inputReader(StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (echo != null) echo.println(line);
+            }
+        }
+        if (process.waitFor() != 0) {
+            throw new IOException("Paperclip이 종료 코드 " + process.exitValue() + "로 끝났다");
+        }
+    }
+
     public boolean isReady() {
         synchronized (lines) {
             return ready;

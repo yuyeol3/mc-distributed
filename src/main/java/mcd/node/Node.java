@@ -2,12 +2,12 @@ package mcd.node;
 
 import mcd.lock.HostLock;
 import mcd.lock.HostLock.Acquisition;
-import mcd.lock.HostLock.Observation;
 import mcd.lock.LockState;
 import mcd.net.Relay;
 import mcd.net.Tailnet;
 import mcd.server.PaperBuild;
 import mcd.server.PaperDistribution;
+import mcd.server.PaperServer;
 import mcd.world.NetworkConfig;
 import mcd.world.WorldRepository;
 import mcd.world.WorldTemplate;
@@ -22,6 +22,7 @@ import java.net.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -123,6 +124,11 @@ public final class Node implements AutoCloseable {
             }
             log.accept("이 월드는 마인크래프트 " + build.version() + "용이다(Paper " + build + ").");
             Path jar = PaperDistribution.official().ensureDownloaded(config.cacheDir(), build);
+            try {
+                PaperServer.patch(config.dir(), jar, console);
+            } catch (IOException e) {
+                log.accept("Paper를 미리 준비하지 못했다(" + e.getMessage() + "). 호스트가 될 때 다시 준비한다.");
+            }
             InstantSource clock = InstantSource.system();
             Timing t = config.timing();
             HostLock lock = new HostLock(git, config.nodeName(), clock, t.ttl(), t.margin(), config.credentials());
@@ -186,17 +192,15 @@ public final class Node implements AutoCloseable {
             return awaitLocalPaper();
         }
         try {
-            Observation observed = lock.peek();
-            announce(observed.lock());
-            if (!observed.takeable()) {
-                return parse(observed.lock().address());
-            }
+            // tryAcquire는 가져갈 수 없으면 현재 락만 돌려주므로 peek를 먼저 하지 않는다(원격 왕복 한 번을 아낀다).
+            Instant start = clock.instant();
             Acquisition acquisition = lock.tryAcquire(address);
+            announce(acquisition.lock());
             if (!acquisition.acquired()) {
-                announce(acquisition.lock());
                 return parse(acquisition.lock().address());
             }
-            log.accept("이 PC가 호스트가 됐다(epoch " + acquisition.lock().epoch() + "). Paper를 시작한다.");
+            log.accept("이 PC가 호스트가 됐다(epoch " + acquisition.lock().epoch() + "). 락 획득 "
+                    + HostSession.seconds(start, clock.instant()) + ". Paper를 시작한다.");
             preparePaperForWorld();
             session = new HostSession(lock, dir, jar, paperPort, handoffPort, node, timing, clock, log, console);
             session.start();
