@@ -129,6 +129,30 @@ public final class PaperServer implements AutoCloseable {
         commandAndAwait("save-on", "Automatic saving is now enabled");
     }
 
+    /** 얼릴 플레이어 속성과 바닐라 기본값. 1.20.5부터 있는 속성이다. */
+    private static final String[][] FROZEN_ATTRIBUTES = {
+            {"movement_speed", "0.1"}, {"jump_strength", "0.42"},
+            {"block_interaction_range", "4.5"}, {"entity_interaction_range", "3.0"}};
+
+    /**
+     * 모든 플레이어가 움직이거나 블록·엔티티와 상호작용하지 못하게 한다. 저장을 멈춘 뒤의 플레이는 넘긴 월드에 들어가지
+     * 않으므로, 그동안 한 일이 사라지는 대신 할 수 없게 한다. 바뀐 속성은 저장을 멈춘 뒤라 디스크에 남지 않는다.
+     */
+    public void freezePlayers(String message) throws IOException {
+        for (String[] attribute : FROZEN_ATTRIBUTES) {
+            command("execute as @a run attribute @s minecraft:" + attribute[0] + " base set 0");
+        }
+        command("title @a title \"" + message + "\"");
+    }
+
+    /** {@link #freezePlayers}를 되돌린다. 저장을 다시 켜기 전에 불러야 얼린 속성이 저장되지 않는다. */
+    public void unfreezePlayers() throws IOException {
+        for (String[] attribute : FROZEN_ATTRIBUTES) {
+            command("execute as @a run attribute @s minecraft:" + attribute[0] + " base set " + attribute[1]);
+        }
+        command("title @a clear");
+    }
+
     /** 정상 종료한다. 종료 과정에서 월드 저장이 끝난다. */
     public void stop(Duration timeout) throws IOException, InterruptedException, TimeoutException {
         command("stop");

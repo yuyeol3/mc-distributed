@@ -67,6 +67,10 @@ class HandoffScenarioTest {
                     b.await(markB, BECAME_HOST + "(epoch 3)", Duration.ofSeconds(30));
 
                     assertEquals("diamond:3", alice.awaitInventory("diamond:3"), "넘긴 월드에서 인벤토리가 이어져야 한다");
+                    assertTrue(a.printed("Block Interaction Range for entity alice set to 0.0"), "넘기는 동안 플레이어를 얼려야 한다");
+                    // movement_speed는 불러올 때 걷기 속도로 다시 정해지므로, 그대로 저장되는 속성으로 확인한다.
+                    String reach = b.sendAndAwait("attribute alice minecraft:block_interaction_range base get", "Block Interaction Range");
+                    assertTrue(reach.contains(" 4.5"), "얼린 속성이 넘긴 월드에 남으면 안 된다: " + reach);
                     String players = b.sendAndAwait("list", "players online");
                     assertTrue(players.contains("alice") && players.contains("bob"), players);
                     assertTrue(a.waitForExit(Duration.ofSeconds(30)));

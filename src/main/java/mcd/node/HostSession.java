@@ -187,8 +187,11 @@ final class HostSession {
         paper.command("say 호스트가 나가서 서버를 옮깁니다. 잠시 뒤 자동으로 다시 접속됩니다.");
         Instant start = clock.instant();
         paper.pauseSavingAndFlush();
+        // 반납 push가 끝날 때까지(5~7초, 실험 E7)의 플레이는 넘긴 월드에 들어가지 않으므로 그동안 얼려 둔다.
+        paper.freezePlayers("서버를 옮기는 중");
         if (lock.release() != PushOutcome.OK) {
             log.accept("락을 반납하지 못해서 서버를 넘기지 못했다.");
+            paper.unfreezePlayers();
             paper.resumeSaving();
             return false;
         }
