@@ -1,10 +1,11 @@
 package mcd.lock;
 
+import mcd.world.DeployKey;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.TransportConfigCallback;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.URIish;
@@ -57,39 +58,53 @@ class PushCasTest {
     @Tag("github")
     @EnabledIfEnvironmentVariable(named = "MCD_GITHUB_REMOTE", matches = ".+")
     void exactlyOneConcurrentPushWinsOnGitHub() throws Exception {
-        String uri = System.getenv("MCD_GITHUB_REMOTE");
-        CredentialsProvider creds = new UsernamePasswordCredentialsProvider("x-access-token", System.getenv("MCD_GITHUB_TOKEN"));
-        seed(uri, creds);
+        String token = System.getenv("MCD_GITHUB_TOKEN");
+        githubRounds(System.getenv("MCD_GITHUB_REMOTE"),
+                t -> t.setCredentialsProvider(new UsernamePasswordCredentialsProvider("x-access-token", token)));
+    }
 
+    /**
+     * 실험 E9: deploy key(SSH, 443 포트)로도 같은 성질인지 확인한다. 빈 private repo에 쓰기 권한 deploy key를 등록하고 실행한다.
+     * MCD_SSH_REMOTE=ssh://git@ssh.github.com:443/<user>/<repo>.git MCD_DEPLOY_KEY=<DeployKey.encode()> ./gradlew test --tests '*PushCasTest*'
+     */
+    @Test
+    @Tag("github")
+    @EnabledIfEnvironmentVariable(named = "MCD_SSH_REMOTE", matches = ".+")
+    void exactlyOneConcurrentPushWinsOnGitHubOverSsh() throws Exception {
+        githubRounds(System.getenv("MCD_SSH_REMOTE"), DeployKey.decode(System.getenv("MCD_DEPLOY_KEY")).transport());
+    }
+
+    private void githubRounds(String uri, TransportConfigCallback auth) throws Exception {
+        seed(uri, auth);
         for (int round = 0; round < 20; round++) {
-            raceRound(uri, creds, 3, tmp.resolve("r" + round));
+            raceRound(uri, auth, 3, tmp.resolve("r" + round));
             Thread.sleep(30_000);
         }
     }
 
     /** main에 첫 커밋을 만든다. 이미 있으면 그대로 쓴다. */
-    private void seed(String uri, CredentialsProvider creds) throws Exception {
+    private void seed(String uri, TransportConfigCallback auth) throws Exception {
         Path dir = tmp.resolve("seed");
         try (Git git = Git.init().setInitialBranch("main").setDirectory(dir.toFile()).call()) {
             git.remoteAdd().setName("origin").setUri(new URIish(uri)).call();
-            git.fetch().setRemote("origin").setCredentialsProvider(creds).call();
+            git.fetch().setRemote("origin").setTransportConfigCallback(auth).call();
             if (git.getRepository().findRef("refs/remotes/origin/main") != null) {
                 return;
             }
             Files.writeString(dir.resolve("lock.json"), "{}");
             git.add().addFilepattern("lock.json").call();
             git.commit().setMessage("seed").setSign(false).call();
-            git.push().setRemote("origin").add("main").setCredentialsProvider(creds).call();
+            git.push().setRemote("origin").add("main").setTransportConfigCallback(auth).call();
         }
     }
 
     /** 클라이언트 n개가 같은 부모에서 서로 다른 커밋을 만들고 동시에 push한다. */
-    private void raceRound(String uri, CredentialsProvider creds, int n, Path roundDir) throws Exception {
+    private void raceRound(String uri, TransportConfigCallback auth, int n, Path roundDir) throws Exception {
         List<Git> clients = new ArrayList<>();
         List<RevCommit> commits = new ArrayList<>();
         for (int i = 0; i < n; i++) {
             Path dir = roundDir.resolve("c" + i);
-            Git git = Git.cloneRepository().setURI(uri).setDirectory(dir.toFile()).setCredentialsProvider(creds).call();
+            Git git = Git.cloneRepository().setURI(uri).setDirectory(dir.toFile()).setTransportConfigCallback(auth).call();
             Files.writeString(dir.resolve("lock.json"), "{\"owner\":\"c" + i + "\"}");
             git.add().addFilepattern("lock.json").call();
             commits.add(git.commit().setMessage("acquire c" + i).setSign(false).call());
@@ -103,7 +118,7 @@ class PushCasTest {
                 futures.add(pool.submit(() -> {
                     start.await();
                     long t0 = System.nanoTime();
-                    Outcome o = push(git, creds);
+                    Outcome o = push(git, auth);
                     return new Outcome(o.ok, o.detail, (System.nanoTime() - t0) / 1_000_000);
                 }));
             }
@@ -117,14 +132,14 @@ class PushCasTest {
         }
         assertEquals(1, winners.size(), "push에 성공한 클라이언트는 정확히 하나여야 한다: " + winners);
 
-        ObjectId remoteMain = remoteMain(clients.getFirst(), creds);
+        ObjectId remoteMain = remoteMain(clients.getFirst(), auth);
         assertEquals(commits.get(winners.getFirst()).getId(), remoteMain, "원격 main은 승자의 커밋이어야 한다");
         clients.forEach(Git::close);
     }
 
-    private Outcome push(Git git, CredentialsProvider creds) {
+    private Outcome push(Git git, TransportConfigCallback auth) {
         try {
-            Iterable<PushResult> results = git.push().setRemote("origin").add("main").setCredentialsProvider(creds).call();
+            Iterable<PushResult> results = git.push().setRemote("origin").add("main").setTransportConfigCallback(auth).call();
             RemoteRefUpdate update = results.iterator().next().getRemoteUpdate(MAIN);
             return new Outcome(update.getStatus() == RemoteRefUpdate.Status.OK,
                     update.getStatus() + (update.getMessage() == null ? "" : " " + update.getMessage()), 0);
@@ -133,8 +148,8 @@ class PushCasTest {
         }
     }
 
-    private ObjectId remoteMain(Git git, CredentialsProvider creds) throws Exception {
-        for (Ref ref : git.lsRemote().setRemote("origin").setCredentialsProvider(creds).call()) {
+    private ObjectId remoteMain(Git git, TransportConfigCallback auth) throws Exception {
+        for (Ref ref : git.lsRemote().setRemote("origin").setTransportConfigCallback(auth).call()) {
             if (ref.getName().equals(MAIN)) return ref.getObjectId();
         }
         throw new AssertionError("원격에 main이 없다");

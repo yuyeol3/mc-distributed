@@ -11,7 +11,7 @@ import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
-import org.eclipse.jgit.transport.CredentialsProvider;
+import org.eclipse.jgit.api.TransportConfigCallback;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
@@ -57,20 +57,20 @@ public final class HostLock {
     private final InstantSource clock;
     private final Duration ttl;
     private final Duration margin;
-    private final CredentialsProvider credentials;
+    private final TransportConfigCallback auth;
 
     private ObjectId observedHead;
     private Instant observedSince;
     private Instant lastPushStart;
     private int mainPushes;
 
-    public HostLock(Git git, String node, InstantSource clock, Duration ttl, Duration margin, CredentialsProvider credentials) {
+    public HostLock(Git git, String node, InstantSource clock, Duration ttl, Duration margin, TransportConfigCallback auth) {
         this.git = git;
         this.node = node;
         this.clock = clock;
         this.ttl = ttl;
         this.margin = margin;
-        this.credentials = credentials;
+        this.auth = auth;
     }
 
     /**
@@ -259,7 +259,7 @@ public final class HostLock {
     }
 
     private void fetch() throws GitAPIException {
-        git.fetch().setRemote("origin").setCredentialsProvider(credentials).call();
+        git.fetch().setRemote("origin").setTransportConfigCallback(auth).call();
     }
 
     private PushOutcome push(String targetRef) {
@@ -268,7 +268,7 @@ public final class HostLock {
             Iterable<PushResult> results = git.push()
                     .setRemote("origin")
                     .setRefSpecs(new RefSpec("HEAD:" + targetRef))
-                    .setCredentialsProvider(credentials)
+                    .setTransportConfigCallback(auth)
                     .call();
             RemoteRefUpdate.Status status = results.iterator().next().getRemoteUpdate(targetRef).getStatus();
             if (status != RemoteRefUpdate.Status.OK && status != RemoteRefUpdate.Status.UP_TO_DATE) {

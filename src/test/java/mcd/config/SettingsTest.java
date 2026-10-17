@@ -17,6 +17,9 @@ class SettingsTest {
 
     private static final World SURVIVAL = new World("https://github.com/me/survival.git", Path.of("C:\\Users\\me\\.mcd\\worlds\\survival"));
     private static final World CREATIVE = new World("https://github.com/friend/creative.git", Path.of("C:\\Users\\me\\.mcd\\worlds\\creative"));
+    /** deploy key로 참가한 월드: 토큰 없이 SSH로 접속한다. */
+    private static final World INVITED = new World("ssh://git@ssh.github.com:443/friend/invited.git",
+            Path.of("C:\\Users\\me\\.mcd\\worlds\\invited"), "cHJpdmF0ZQ.cHVibGlj");
 
     @TempDir
     Path tmp;
@@ -24,7 +27,7 @@ class SettingsTest {
     @Test
     void savedSettingsLoadBackIncludingNonAsciiAndWindowsPaths() throws Exception {
         Path file = tmp.resolve("nested/settings.properties");
-        Settings settings = new Settings("철수", "ghp_x", "localhost:25566", List.of(SURVIVAL, CREATIVE), CREATIVE.remote());
+        Settings settings = new Settings("철수", "ghp_x", "localhost:25566", List.of(SURVIVAL, CREATIVE, INVITED), CREATIVE.remote());
 
         settings.save(file);
 

@@ -9,7 +9,7 @@ import mcd.server.PaperDistribution;
 import mcd.world.WorldRepository;
 import mcd.world.WorldTemplate;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.transport.CredentialsProvider;
+import org.eclipse.jgit.api.TransportConfigCallback;
 
 import java.nio.file.Path;
 import java.time.InstantSource;
@@ -24,11 +24,11 @@ public final class UpgradeCommand {
     private UpgradeCommand() {}
 
     /** target은 "버전-빌드" 또는 버전만(그 버전의 최신 안정 빌드). 바꾼 빌드를 돌려준다. */
-    public static PaperBuild run(Path dir, String remote, String node, String target, Path cacheDir, CredentialsProvider credentials,
+    public static PaperBuild run(Path dir, String remote, String node, String target, Path cacheDir, TransportConfigCallback auth,
                           PaperDistribution paper, Consumer<String> log) throws Exception {
-        try (Git git = WorldRepository.openOrClone(dir, remote, credentials)) {
+        try (Git git = WorldRepository.openOrClone(dir, remote, auth)) {
             Timing timing = Timing.fromTtl(Timing.DEFAULT_TTL);
-            HostLock lock = new HostLock(git, node, InstantSource.system(), timing.ttl(), timing.margin(), credentials);
+            HostLock lock = new HostLock(git, node, InstantSource.system(), timing.ttl(), timing.margin(), auth);
             Acquisition acquisition = lock.tryAcquire("");
             if (!acquisition.acquired()) {
                 throw new IllegalStateException("지금 " + acquisition.lock().owner() + "이(가) 호스트라서 바꿀 수 없다. 모두 나간 뒤에 다시 한다.");

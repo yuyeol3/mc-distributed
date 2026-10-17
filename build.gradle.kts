@@ -20,6 +20,8 @@ java {
 
 dependencies {
     implementation("org.eclipse.jgit:org.eclipse.jgit:7.8.0.202609011348-r")
+    // 월드 repo별 deploy key로 GitHub에 SSH 접속한다(GitHub 계정 없는 참가자).
+    implementation("org.eclipse.jgit:org.eclipse.jgit.ssh.apache:7.8.0.202609011348-r")
     // JGit의 로그 출력처. 없으면 시작할 때마다 SLF4J 경고가 찍힌다. JGit이 쓰는 slf4j-api와 같은 버전.
     runtimeOnly("org.slf4j:slf4j-nop:2.0.18")
 

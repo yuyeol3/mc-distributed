@@ -2,7 +2,9 @@ package mcd.world;
 
 import mcd.server.PaperBuild;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.transport.CredentialsProvider;
+import org.eclipse.jgit.api.TransportConfigCallback;
+import org.eclipse.jgit.lib.StoredConfig;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.URIish;
@@ -21,7 +23,7 @@ public final class WorldRepository {
      * network가 있으면 노드들이 그 tailnet에 붙도록 월드에 함께 기록한다.
      */
     public static void create(Path dir, String remote, boolean onlineMode, Optional<NetworkConfig> network,
-                              PaperBuild paperBuild, CredentialsProvider credentials) throws Exception {
+                              PaperBuild paperBuild, TransportConfigCallback auth) throws Exception {
         if (Files.exists(dir)) {
             throw new IllegalStateException(dir + "가 이미 있다. 새 폴더를 지정해야 한다.");
         }
@@ -32,13 +34,13 @@ public final class WorldRepository {
             git.commit().setMessage("init world").setSign(false).call();
             git.remoteAdd().setName("origin").setUri(new URIish(remote)).call();
 
-            Iterable<PushResult> results = git.push().setRemote("origin").add("main").setCredentialsProvider(credentials).call();
+            Iterable<PushResult> results = git.push().setRemote("origin").add("main").setTransportConfigCallback(auth).call();
             RemoteRefUpdate.Status status = results.iterator().next().getRemoteUpdate("refs/heads/main").getStatus();
             if (status != RemoteRefUpdate.Status.OK) {
                 throw new IllegalStateException("원격에 올리지 못했다(" + status + "). 원격 repo가 비어 있어야 한다.");
             }
             // 이후 fetch가 원격 main을 refs/remotes/origin/main으로 받도록 추적 설정을 맞춘다.
-            git.fetch().setRemote("origin").setCredentialsProvider(credentials).call();
+            git.fetch().setRemote("origin").setTransportConfigCallback(auth).call();
         }
     }
 
@@ -46,11 +48,27 @@ public final class WorldRepository {
         return Files.exists(dir.resolve(".git"));
     }
 
-    /** 작업 트리가 있으면 열고, 없으면 원격에서 받는다. */
-    public static Git openOrClone(Path dir, String remote, CredentialsProvider credentials) throws Exception {
+    /**
+     * 작업 트리가 있으면 열고, 없으면 원격에서 받는다. 이미 있는 작업 트리의 원격 주소가 다르면 remote로 바꾼다
+     * (같은 repo를 https 토큰에서 SSH deploy key로 옮긴 경우).
+     */
+    public static Git openOrClone(Path dir, String remote, TransportConfigCallback auth) throws Exception {
         if (exists(dir)) {
-            return Git.open(dir.toFile());
+            Git git = Git.open(dir.toFile());
+            StoredConfig config = git.getRepository().getConfig();
+            if (!remote.equals(config.getString("remote", "origin", "url"))) {
+                config.setString("remote", "origin", "url", remote);
+                config.save();
+            }
+            return git;
         }
-        return Git.cloneRepository().setURI(remote).setDirectory(dir.toFile()).setCredentialsProvider(credentials).call();
+        return Git.cloneRepository().setURI(remote).setDirectory(dir.toFile()).setTransportConfigCallback(auth).call();
+    }
+
+    /** GitHub 토큰(https)으로 접속한다. 토큰이 비면 인증 없이(로컬 repo 등). */
+    public static TransportConfigCallback tokenAuth(String token) {
+        if (token == null || token.isBlank()) return null;
+        UsernamePasswordCredentialsProvider credentials = new UsernamePasswordCredentialsProvider("x-access-token", token);
+        return transport -> transport.setCredentialsProvider(credentials);
     }
 }

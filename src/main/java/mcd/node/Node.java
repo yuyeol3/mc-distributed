@@ -12,7 +12,7 @@ import mcd.world.NetworkConfig;
 import mcd.world.WorldRepository;
 import mcd.world.WorldTemplate;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.transport.CredentialsProvider;
+import org.eclipse.jgit.api.TransportConfigCallback;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -50,7 +50,7 @@ public final class Node implements AutoCloseable {
      * 한 PC에서 노드 여러 개를 흉내 내는 테스트에서만 다른 값을 쓴다.
      */
     public record Config(String remote, Path dir, String nodeName, int listenPort, int paperPort, String address,
-                         Path cacheDir, CredentialsProvider credentials, Timing timing, int handoffPort) {}
+                         Path cacheDir, TransportConfigCallback auth, Timing timing, int handoffPort) {}
 
     private final Git git;
     private final HostLock lock;
@@ -111,7 +111,7 @@ public final class Node implements AutoCloseable {
         if (!WorldRepository.exists(config.dir())) {
             log.accept(config.remote() + "에서 월드를 받는다.");
         }
-        Git git = WorldRepository.openOrClone(config.dir(), config.remote(), config.credentials());
+        Git git = WorldRepository.openOrClone(config.dir(), config.remote(), config.auth());
         try {
             // 엉뚱한 git repo(예: 경로가 비어 현재 폴더)에 파일을 쓰지 않도록, 월드 repo인지부터 확인한다.
             PaperBuild build = WorldTemplate.paperBuild(config.dir());
@@ -131,7 +131,7 @@ public final class Node implements AutoCloseable {
             }
             InstantSource clock = InstantSource.system();
             Timing t = config.timing();
-            HostLock lock = new HostLock(git, config.nodeName(), clock, t.ttl(), t.margin(), config.credentials());
+            HostLock lock = new HostLock(git, config.nodeName(), clock, t.ttl(), t.margin(), config.auth());
             return new Node(git, lock, config, build, jar, NetworkConfig.read(config.dir()), clock, log, console);
         } catch (Exception e) {
             git.close();

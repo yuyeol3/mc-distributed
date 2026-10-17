@@ -5,9 +5,11 @@ import mcd.node.Timing;
 import mcd.server.PaperBuild;
 import mcd.server.PaperDistribution;
 import mcd.world.NetworkConfig;
-import org.eclipse.jgit.transport.CredentialsProvider;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import mcd.world.DeployKey;
+import mcd.world.WorldRepository;
+import org.eclipse.jgit.api.TransportConfigCallback;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.HashMap;
@@ -40,6 +42,7 @@ public final class Main {
               mcd update
                   새 버전이 있으면 받아서 검증해 두고, 이 설치 폴더의 mcd가 모두 끝나면 바꾼다.
             GitHub 토큰은 환경 변수 MCD_GITHUB_TOKEN으로 넘긴다.
+            --deploy-key <파일>을 주면 토큰 대신 그 월드의 deploy key로 SSH 접속한다(원격은 ssh://git@ssh.github.com:443/<계정>/<repo>.git).
             """;
 
     private Main() {}
@@ -66,7 +69,7 @@ public final class Main {
                             ? Optional.of(new NetworkConfig(opts.getOrDefault("tailnet-control-url", ""), opts.get("tailnet-auth-key")))
                             : Optional.empty(),
                     initialPaperBuild(opts.get("paper")),
-                    credentials());
+                    auth(opts));
             case "play" -> {
                 int paperPort = Integer.parseInt(opts.getOrDefault("port", "25566"));
                 new PlayCommand(new Node.Config(
@@ -77,7 +80,7 @@ public final class Main {
                         paperPort,
                         opts.getOrDefault("address", "localhost:" + paperPort),
                         opts.containsKey("cache") ? Path.of(opts.get("cache")) : Path.of(System.getProperty("user.home"), ".mcd", "cache"),
-                        credentials(),
+                        auth(opts),
                         Timing.fromTtl(opts.containsKey("ttl-seconds")
                                 ? Duration.ofSeconds(Long.parseLong(opts.get("ttl-seconds")))
                                 : Timing.DEFAULT_TTL),
@@ -91,7 +94,7 @@ public final class Main {
                     require(opts, "node"),
                     require(opts, "paper"),
                     opts.containsKey("cache") ? Path.of(opts.get("cache")) : Path.of(System.getProperty("user.home"), ".mcd", "cache"),
-                    credentials(),
+                    auth(opts),
                     PaperDistribution.official(),
                     message -> System.out.println("[mcd] " + message));
             default -> {
@@ -133,8 +136,11 @@ public final class Main {
         return value;
     }
 
-    private static CredentialsProvider credentials() {
-        String token = System.getenv("MCD_GITHUB_TOKEN");
-        return token == null ? null : new UsernamePasswordCredentialsProvider("x-access-token", token);
+    /** --deploy-key 파일(DeployKey 문자열)이 있으면 그 키로 SSH, 없으면 환경 변수 MCD_GITHUB_TOKEN으로 https. */
+    private static TransportConfigCallback auth(Map<String, String> opts) throws Exception {
+        if (opts.containsKey("deploy-key")) {
+            return DeployKey.decode(Files.readString(Path.of(opts.get("deploy-key")))).transport();
+        }
+        return WorldRepository.tokenAuth(System.getenv("MCD_GITHUB_TOKEN"));
     }
 }

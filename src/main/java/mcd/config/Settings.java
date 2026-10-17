@@ -17,8 +17,15 @@ import java.util.Properties;
  */
 public record Settings(String nodeName, String token, String address, List<World> worlds, String current) {
 
-    /** 월드 하나: 원격 repo와 그 작업 트리(Paper 서버 폴더). */
-    public record World(String remote, Path dir) {
+    /**
+     * 월드 하나: 원격 repo와 그 작업 트리(Paper 서버 폴더). deployKey는 그 repo의 deploy key({@code DeployKey.encode()})이며,
+     * 비어 있으면 GitHub 토큰으로 접속한다. 토큰처럼 평문으로 저장된다.
+     */
+    public record World(String remote, Path dir, String deployKey) {
+        public World(String remote, Path dir) {
+            this(remote, dir, "");
+        }
+
         public String name() {
             return dir.getFileName().toString();
         }
@@ -74,7 +81,8 @@ public record Settings(String nodeName, String token, String address, List<World
             worlds.add(world(file, p, "remote", "worldDir"));
         }
         for (int i = 0; p.containsKey("world." + i + ".remote"); i++) {
-            worlds.add(world(file, p, "world." + i + ".remote", "world." + i + ".dir"));
+            World w = world(file, p, "world." + i + ".remote", "world." + i + ".dir");
+            worlds.add(new World(w.remote(), w.dir(), p.getProperty("world." + i + ".key", "")));
         }
         String current = p.getProperty("current", p.getProperty("remote", ""));
         return Optional.of(new Settings(p.getProperty("node"), p.getProperty("token", ""), p.getProperty("address"), worlds, current));
@@ -88,6 +96,9 @@ public record Settings(String nodeName, String token, String address, List<World
         for (int i = 0; i < worlds.size(); i++) {
             p.setProperty("world." + i + ".remote", worlds.get(i).remote());
             p.setProperty("world." + i + ".dir", worlds.get(i).dir().toString());
+            if (!worlds.get(i).deployKey().isEmpty()) {
+                p.setProperty("world." + i + ".key", worlds.get(i).deployKey());
+            }
         }
         p.setProperty("current", current);
         Files.createDirectories(file.getParent());

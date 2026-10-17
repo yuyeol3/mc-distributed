@@ -10,8 +10,8 @@ import mcd.update.AppVersion;
 import mcd.update.Updater;
 import mcd.world.WorldRepository;
 import mcd.world.WorldTemplate;
-import org.eclipse.jgit.transport.CredentialsProvider;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import mcd.world.DeployKey;
+import org.eclipse.jgit.api.TransportConfigCallback;
 
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
@@ -146,7 +146,7 @@ final class MainWindow extends JFrame {
         try {
             Settings s = settings;
             Node.Config config = new Node.Config(world.get().remote(), world.get().dir(), s.nodeName(), LISTEN_PORT, PAPER_PORT,
-                    s.address(), CACHE, credentials(), Timing.fromTtl(Timing.DEFAULT_TTL), LISTEN_PORT);
+                    s.address(), CACHE, auth(world.get()), Timing.fromTtl(Timing.DEFAULT_TTL), LISTEN_PORT);
             Node opened = Node.open(config, true, this::log, new PrintStream(new LineSink(), true, StandardCharsets.UTF_8));
             opened.start();
             node = opened;
@@ -261,7 +261,7 @@ final class MainWindow extends JFrame {
         inControl(() -> {
             stopNode();
             try {
-                UpgradeCommand.run(world.dir(), world.remote(), settings.nodeName(), version, CACHE, credentials(),
+                UpgradeCommand.run(world.dir(), world.remote(), settings.nodeName(), version, CACHE, auth(world),
                         PaperDistribution.official(), this::log);
             } catch (Exception e) {
                 log("버전을 올리지 못했다: " + e.getMessage());
@@ -290,8 +290,11 @@ final class MainWindow extends JFrame {
         }
     }
 
-    private CredentialsProvider credentials() {
-        return new UsernamePasswordCredentialsProvider("x-access-token", settings.token());
+    /** 월드에 deploy key가 있으면 그 키로 SSH, 없으면 설정의 GitHub 토큰으로 https 접속한다. */
+    private TransportConfigCallback auth(World world) throws java.security.GeneralSecurityException {
+        return world.deployKey().isEmpty()
+                ? WorldRepository.tokenAuth(settings.token())
+                : DeployKey.decode(world.deployKey()).transport();
     }
 
     // ---- 업데이트, 명령, 종료 ----
