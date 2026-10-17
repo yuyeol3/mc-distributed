@@ -226,6 +226,17 @@ flowchart LR
 - 노드 키 같은 tailnet 상태는 월드 폴더(git 작업 트리) 밖, `<cache>/../tailnet/`에 둔다. 월드 폴더에 두면 커밋될 수 있다.
 - 조정 서버는 기본으로 Tailscale을 쓰고, Headscale 같은 다른 서버도 쓸 수 있다. 개발 테스트는 Headscale을 써서 계정 없이 한다.
 
+### 6.1 GitHub 접근: deploy key와 초대 코드
+
+친구가 GitHub 계정 없이 참가하도록, 월드 repo마다 그 repo 하나에만 쓰는 SSH **deploy key**를 둔다([E9](../experiments/E9-results.md)).
+
+- 키는 mcd가 만든다(`DeployKey`, ECDSA P-256. ed25519는 MINA sshd 2.x에서 추가 라이브러리가 필요하다). 월드 주인이 GitHub 웹의 Deploy keys 화면에서 쓰기 권한으로 한 번 등록한다. **토큰으로 자동 등록하지 않는다**: 토큰으로 만든 deploy key는 그 토큰을 지우면 함께 지워진다(GitHub 문서). 같은 이유로 새 월드도 사용자가 웹에서 만든 빈 repo에 올린다.
+- 등록이 끝나면 mcd가 그 키로 push 연결을 열어 본다(`WorldRepository.checkWriteAccess`). 키가 없거나 읽기 전용이면 여기서 알린다.
+- 초대 코드는 `mcd1.` + repo(계정/이름) + 키다(`Invite`, 300자 안쪽). 코드를 가진 사람은 누구나 월드를 읽고 쓸 수 있다. 초대를 끊으려면 키를 지우고 새로 만든다.
+- 접속은 `ssh://git@ssh.github.com:443/<계정>/<repo>.git`(22번 포트를 막는 네트워크 대비), JGit `ssh.apache`. `~/.ssh`를 읽지 않고, 서버 키는 GitHub가 공개한 SHA256 지문과만 비교한다.
+- 인증은 JGit `TransportConfigCallback` 하나로 넘긴다. 월드에 키가 있으면 SSH, 없으면 설정의 토큰(https, 예전 방식). 같은 repo를 https에서 SSH로 바꾸면 작업 트리의 원격 주소도 따라 바꾼다.
+- SSH로도 force 없는 push는 CAS로 동작한다(E9, 20회 모두 승자 하나). 다만 명령마다 연결을 새로 맺어 push가 https보다 약 1.1초 느리다.
+
 ## 7. 호스트 이관
 
 다른 사람이 접속해 있는데 호스트가 나가면 서버를 넘긴다.
@@ -276,11 +287,11 @@ sequenceDiagram
 | `mcd.node` | 한 PC의 노드 | `Node`(중계, 라우팅, 관찰, tailnet), `HostSession`(Paper, heartbeat, 스냅샷, 빈 서버 종료, 이관), `Timing` |
 | `mcd.net` | 네트워크 | `Relay`(중계, 서버 목록 응답, 로그인 붙잡기), `Protocol`(첫머리 패킷), `Tailnet`(`mcd-net` 실행과 SOCKS5) |
 | `mcd.server` | Paper 제어 | `PaperServer`(프로세스, 콘솔 명령, 저장 제어), `PaperDistribution`(월드가 정한 빌드 다운로드, 해시 검증, 지원 범위), `PaperBuild`, `ParentWatchdog`(Java 에이전트) |
-| `mcd.world` | 월드 repo | `WorldRepository`(생성, clone), `WorldTemplate`(초기 파일), `NetworkConfig` |
+| `mcd.world` | 월드 repo | `WorldRepository`(생성, clone, 쓰기 권한 확인), `WorldTemplate`(초기 파일), `NetworkConfig`, `DeployKey`, `GitHubRepo`, `Invite` |
 | `mcd.cli` | CLI | `Main`, `InitCommand`, `PlayCommand`, `UpgradeCommand`, `UpdateCommand` |
-| `mcd.gui` | GUI | `App`, `MainWindow`(월드 고르기·추가·빼기·버전 올리기), `AccountDialog`(이름, 토큰, 서버 주소), `AddWorldDialog`(새 월드/참가) |
+| `mcd.gui` | GUI | `App`, `MainWindow`(월드 고르기·추가·빼기·버전 올리기·친구 초대), `AccountDialog`(이름, 토큰(선택), 서버 주소), `AddWorldDialog`(새 월드/참가), `DeployKeyDialog`(키 등록 안내와 확인) |
 | `mcd.update` | 자동 업데이트 | `Updater`(릴리스 확인, 받기, 검증, 교체 스크립트), `AppVersion`, `Json`(작은 JSON 파서) |
-| `mcd.config`, `mcd.github` | GUI 지원 | `Settings`(`~/.mcd/settings.properties`, 공통 설정과 월드 목록), `GitHubClient`(토큰 확인, private repo 생성) |
+| `mcd.config`, `mcd.github` | GUI 지원 | `Settings`(`~/.mcd/settings.properties`, 공통 설정과 월드 목록, 월드별 deploy key), `GitHubClient`(토큰 확인) |
 | `net-helper/` (Go) | tailnet 보조 프로그램 | `mcd-net`: tsnet, SOCKS5, 들어오는 포워딩 |
 
 의존 방향은 `cli`/`gui` → `node` → `lock`, `net`, `server`, `world`이다. `lock`은 JGit에만 의존하고 Paper나 네트워크를 모른다.
@@ -368,6 +379,7 @@ sequenceDiagram
 
 ## 13. 알려진 한계
 
-- tailnet 인증 키와 GitHub 토큰의 보관 방식(월드 repo, 설정 파일 평문)은 아직 단순하다.
+- tailnet 인증 키, GitHub 토큰, deploy key의 보관 방식(월드 repo, 설정 파일 평문)은 아직 단순하다.
+- 넘기는 동안 플레이어를 얼려도 날기는 막지 못한다(비행 속도는 속성이 아니라 능력치라 콘솔로 바꿀 수 없다). 블록은 다룰 수 없고 이동은 넘어가지 않으므로 잃는 것은 없다.
 - tailnet으로 들어온 플레이어는 Paper에 127.0.0.1로 보인다(IP 차단 기능은 쓸 수 없다).
 - 실제 원격 친구 환경으로는 아직 확인하지 않았다(VM과 봇으로 확인). 정품 클라이언트로는 한 PC에서 중계, 정품 인증, 첫 기동 대기를 확인했다.

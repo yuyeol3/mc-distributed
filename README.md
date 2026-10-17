@@ -18,10 +18,10 @@
 |---|---|---|
 | Windows 10/11 PC | 모두 | 배포판은 Java 런타임을 포함하므로 Java를 설치하지 않아도 된다 |
 | 마인크래프트 Java Edition (월드의 버전) | 모두 | 새 월드는 26.2로 만들어진다. 월드 주인이 버전을 올리면 모두 그 버전으로 맞춘다. mcd 창에 "이 월드는 마인크래프트 OOO용이다"가 뜬다. 정품 계정이 필요하다 |
-| GitHub 계정과 토큰 | 모두 | 월드를 보관하는 곳이다. **메인 계정과 따로 만든 계정**을 권한다(아래 참고) |
+| GitHub 계정 | 월드 주인만 | 월드를 보관하는 곳이다. **메인 계정과 따로 만든 계정**을 권한다(아래 참고). 친구는 GitHub 계정이 필요 없다(초대 코드로 참가) |
 | Tailscale 계정 | 월드 주인만 | 인터넷 너머의 친구와 할 때만 필요하다. 친구는 필요 없다 |
 
-**GitHub 토큰 만들기**: GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token. `repo` 권한을 체크한다. 월드 주인은 이 토큰으로 private repo를 만들고, 친구는 초대받은 repo에 접근한다.
+GitHub 토큰은 필요 없다. 월드마다 mcd가 만든 **deploy key**(그 repo 하나에만 쓰는 SSH 키)를 월드 주인이 GitHub 웹에서 한 번 등록하고, 친구는 그 키가 든 **초대 코드**로 참가한다.
 
 **Tailscale 인증 키 만들기**(월드 주인): [Tailscale 관리 화면](https://login.tailscale.com/admin/settings/keys) → Settings → Keys → Generate auth key. **Reusable**을 켜서 만든다. 이 키는 월드 repo에 저장돼 친구들에게 자동으로 전달되므로, 친구들은 Tailscale에 가입하지 않는다.
 
@@ -30,18 +30,24 @@
 ### 월드 주인
 
 1. `mcd-windows.zip`을 풀고 `mcd/mcd.exe`를 실행한다.
-2. 처음 설정 창에서 **내 이름**(다른 사람에게 보일 이름)과 **GitHub 토큰**을 넣고 **Minecraft EULA 동의**에 체크한다.
-3. 이어서 나오는 월드 추가 창에서 다음을 넣는다.
-   - **새 월드 만들기**를 고르고 repo 이름을 정한다(GitHub에 private repo가 만들어진다).
+2. 처음 설정 창에서 **내 이름**(다른 사람에게 보일 이름)을 넣고 **Minecraft EULA 동의**에 체크한다. GitHub 토큰은 비워 둔다.
+3. [github.com/new](https://github.com/new)에서 **빈 private repo**를 만든다(README 등 초기 파일 없이).
+4. 이어서 나오는 월드 추가 창에서 다음을 넣는다.
+   - **새 월드 만들기**를 고르고 방금 만든 repo 주소를 넣는다.
    - **tailnet 인증 키**: 인터넷 너머의 친구와 할 거라면 Tailscale 인증 키를 넣는다. 같은 집에서만 할 거면 비워 둔다.
-4. 월드를 만들면 친구 초대 주소가 나온다. GitHub repo의 Settings → Collaborators에서 친구를 초대한다.
-5. 마인크래프트 → 멀티플레이 → 서버 추가 → 주소 **`localhost:25565`** 로 접속한다.
+5. 추가를 누르면 deploy key 등록 안내가 뜬다. 'GitHub에서 열기'로 repo의 Deploy key 추가 화면을 열고, Title `mcd`, Key에 안내 창의 공개키를 붙여 넣은 뒤 **Allow write access**를 체크하고 Add key. mcd에서 '등록했다'를 누르면 접속을 확인하고 월드를 올린다.
+6. mcd 창의 **친구 초대**를 누르면 초대 코드가 복사된다. 친구에게 보낸다.
+7. 마인크래프트 → 멀티플레이 → 서버 추가 → 주소 **`localhost:25565`** 로 접속한다.
+
+초대 코드를 가진 사람은 누구나 월드를 읽고 쓸 수 있다. 공개된 곳에 올리지 않는다. 초대를 끊으려면 **친구 초대 → 키 바꾸기**로 새 키를 등록한 뒤, GitHub repo의 Settings → Deploy keys에서 예전 mcd 키를 지운다(계속 함께할 친구에게는 새 코드를 보낸다).
 
 ### 친구
 
-1. 월드 주인의 GitHub 초대를 수락한다.
-2. `mcd/mcd.exe`를 실행하고 처음 설정(이름, 토큰, EULA)을 마친 뒤, 월드 추가 창에서 **친구의 월드에 참가**를 고르고 월드 주인의 repo 주소(`https://github.com/<계정>/<repo>.git`)를 넣는다. tailnet 인증 키는 비워 둔다(월드에 이미 들어 있다).
+1. `mcd/mcd.exe`를 실행하고 처음 설정(이름, EULA)을 마친다. GitHub 계정과 토큰은 필요 없다.
+2. 월드 추가 창에서 **친구의 월드에 참가**를 고르고 받은 **초대 코드**(`mcd1.`로 시작)를 붙여 넣는다. tailnet 인증 키는 비워 둔다(월드에 이미 들어 있다).
 3. 마인크래프트에서 **`localhost:25565`** 로 접속한다.
+
+예전 방식(repo collaborator로 초대받고 GitHub 토큰으로 접속)으로 추가한 월드도 그대로 쓸 수 있다. 그 월드에서 **친구 초대**를 누르면 deploy key 등록을 안내하고, 등록하면 그 PC도 키로 접속하도록 바뀐다.
 
 ### 플레이할 때 일어나는 일
 
@@ -62,7 +68,8 @@
 | **월드 추가** | 새 월드를 만들거나 친구의 월드에 참가한다 |
 | **목록에서 빼기** | 지금 월드를 목록에서 뺀다. GitHub의 월드와 이 PC의 사본은 지우지 않으므로 다시 추가할 수 있다 |
 | **버전 올리기** | 지금 월드의 마인크래프트(Paper) 버전을 올린다. 누가 플레이 중이면 안 되고, 되돌릴 수 없다. 모두 그 버전의 마인크래프트로 접속해야 한다 |
-| **설정** | 내 이름, GitHub 토큰, 내 서버 주소를 바꾼다. 토큰은 GitHub에 확인한 뒤에 저장한다 |
+| **친구 초대** | 지금 월드의 초대 코드를 복사한다. 월드에 deploy key가 없으면 등록을 먼저 안내한다. **키 바꾸기**로 지금까지의 초대를 끊을 수 있다 |
+| **설정** | 내 이름, GitHub 토큰(예전 방식 월드에만), 내 서버 주소를 바꾼다. 토큰을 넣으면 GitHub에 확인한 뒤에 저장한다 |
 
 ## 문제 해결
 
@@ -72,8 +79,10 @@
 | "지금 호스트는 OOO"인데 접속이 안 됨 | 그 사람의 PC가 갑자기 꺼졌을 수 있다. 최대 10분 뒤 자동으로 다른 PC가 이어받으니, 그 뒤에 다시 접속한다 |
 | 접속 화면에서 버전이 맞지 않다고 나옴 | 마인크래프트 버전을 mcd 창에 뜨는 월드 버전으로 바꾼다 |
 | "Java N 이상이 필요한데" | 월드가 이 mcd보다 새 Paper를 쓴다. mcd를 새 버전으로 바꾼다 |
-| "토큰을 확인하지 못했다" | 토큰이 틀렸거나 `repo` 권한이 없다. 토큰을 다시 만든다 |
-| "원격에 올리지 못했다" (새 월드) | 같은 이름의 repo가 이미 있거나 비어 있지 않다. 다른 이름을 쓴다 |
+| "이 키로 쓰지 못했다" (deploy key 등록) | 공개키를 끝까지 붙여 넣었는지, **Allow write access**를 체크했는지 확인한다. 등록할 repo가 안내 창 제목의 repo와 같은지 본다 |
+| 친구가(또는 나도) 갑자기 접속하지 못함 | repo의 Deploy keys에서 mcd 키가 지워졌을 수 있다. 월드 주인이 **친구 초대 → 키 바꾸기**로 다시 등록하고 새 초대 코드를 보낸다 |
+| "토큰을 확인하지 못했다" | 예전 방식 월드에만 해당. 토큰이 틀렸거나 `repo` 권한이 없다 |
+| "원격에 올리지 못했다" (새 월드) | repo가 비어 있지 않다(README 등). 빈 repo를 새로 만든다 |
 | 토큰이나 이름을 바꾸고 싶음 | mcd 창의 **설정** |
 | 설정을 처음부터 다시 하고 싶음 | `%USERPROFILE%\.mcd\settings.properties`를 지우고 다시 실행한다 |
 | GitHub repo에 `recovery/...` 브랜치가 생김 | PC가 갑자기 꺼진 사이 다른 사람이 이어서 플레이해서, 꺼졌던 PC의 마지막 몇 분이 따로 보관된 것이다. 메인 월드는 갈라지지 않았다. 필요 없으면 지워도 된다 |
@@ -81,7 +90,7 @@
 
 ## CLI 사용법
 
-배포판의 `mcd/mcd-cli.exe`(또는 직접 빌드한 `build/install/mcd/bin/mcd`)로 GUI 없이 쓸 수 있다. GitHub 토큰은 환경 변수 `MCD_GITHUB_TOKEN`으로 넘긴다.
+배포판의 `mcd/mcd-cli.exe`(또는 직접 빌드한 `build/install/mcd/bin/mcd`)로 GUI 없이 쓸 수 있다. deploy key로 접속하려면 `--deploy-key <파일>`(키 문자열이 든 파일)과 SSH 원격 주소(`ssh://git@ssh.github.com:443/<계정>/<repo>.git`)를 쓴다. 그렇지 않으면 GitHub 토큰을 환경 변수 `MCD_GITHUB_TOKEN`으로 넘긴다.
 
 ```sh
 # 새 월드 만들기 (원격 repo는 비어 있어야 한다)
@@ -107,6 +116,7 @@ mcd-cli upgrade-paper --remote https://github.com/<계정>/<repo>.git --dir worl
 | | `--tailnet-control-url <주소>` | 조정 서버. 비우면 Tailscale. Headscale을 직접 운영하면 그 주소 |
 | | `--offline` | online mode를 끈다(테스트용, 정품 인증 없음) |
 | `play` | `--remote`, `--dir`, `--node <이름>` | 필수 |
+| | `--deploy-key <파일>` | 토큰 대신 그 월드의 deploy key로 SSH 접속(`init`, `upgrade-paper`에도 쓸 수 있다) |
 | | `--accept-eula` | [Minecraft EULA](https://aka.ms/MinecraftEULA)에 동의 |
 | | `--listen <포트>` | 마인크래프트가 접속할 이 PC의 포트(기본 25565) |
 | | `--port <포트>` | 이 PC가 호스트일 때 Paper 포트(기본 25566) |
@@ -121,7 +131,7 @@ mcd-cli upgrade-paper --remote https://github.com/<계정>/<repo>.git --dir worl
 
 | 위치 | 내용 |
 |---|---|
-| `~/.mcd/settings.properties` | GUI 설정(이름, 토큰, 서버 주소, 월드 목록). 토큰이 평문으로 저장된다 |
+| `~/.mcd/settings.properties` | GUI 설정(이름, 토큰, 서버 주소, 월드 목록과 월드별 deploy key). 토큰과 키가 평문으로 저장된다 |
 | `~/.mcd/worlds/<repo 이름>/` | 월드의 로컬 사본이자 Paper 서버 폴더(git 작업 트리) |
 | `~/.mcd/cache/` | Paper jar(월드가 쓰는 빌드를 처음 쓸 때 받는다)와 검증한 해시(`.sha256`) |
 | `~/.mcd/tailnet/` | tailnet 노드 키. 월드 폴더 밖에 둬서 GitHub에 올라가지 않는다 |
@@ -150,14 +160,16 @@ src/main/java/mcd/
   world/    월드 repo 생성과 초기 파일
 net-helper/ tailnet 보조 프로그램 mcd-net (Go, tsnet)
 e2e/        테스트용 헤드리스 플레이어 (Mineflayer)
-experiments/ 실험 기록 (E1′ ~ E6)
+experiments/ 실험 기록 (E1′ ~ E9)
 ```
 
 ## 알려진 한계
 
 - 호스트 PC가 갑자기 꺼지면, 다른 PC가 이어받기까지 최대 10분 걸린다. 그동안의 플레이(마지막 저장 이후 최대 10분)는 recovery 브랜치로 따로 보관된다.
-- 호스트를 넘길 때 나가는 PC의 플레이어도 같이 끊긴다.
-- tailnet 인증 키는 월드 repo에 들어가므로 collaborator에게 보인다. GitHub 토큰은 설정 파일에 평문으로 저장된다.
+- 호스트를 넘길 때 나가는 PC의 플레이어도 같이 끊긴다. 넘기는 동안(5~8초) 남은 플레이어는 움직이거나 블록을 다루지 못하게 얼려 둔다(날기는 막지 못하지만 그동안의 이동은 넘어가지 않는다).
+- 초대 코드(deploy key)를 가진 사람은 누구나 월드를 읽고 쓸 수 있고, 한 사람만 골라서 내보낼 수 없다(키를 바꾸고 모두에게 새 코드를 보낸다). 여러 사람이 deploy key 하나를 함께 쓰는 것은 GitHub가 뚜렷이 다루지 않는 쓰임새다.
+- deploy key(SSH)는 git 명령마다 연결을 새로 맺어서 토큰(https)보다 push가 1초쯤 느리고, 호스트 이관이 몇 초 길어진다.
+- tailnet 인증 키는 월드 repo에 들어가므로 초대받은 사람에게 보인다. GitHub 토큰과 deploy key는 설정 파일에 평문으로 저장된다.
 - tailnet으로 들어온 플레이어는 서버에서 127.0.0.1로 보인다(IP 차단 기능은 쓸 수 없다).
 - 설치 파일(.msi)은 아직 없다(zip을 풀어서 쓴다). 자동 업데이트는 v0.2.0부터 들어 있어서, v0.1.0은 한 번 직접 바꿔야 한다.
 - 자동 업데이트는 받은 파일을 GitHub 릴리스의 SHA-256으로 검증한다. 다운로드가 깨지지 않았는지만 보장하고, 코드 서명은 하지 않는다.

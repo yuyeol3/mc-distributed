@@ -11,6 +11,8 @@ import mcd.update.Updater;
 import mcd.world.WorldRepository;
 import mcd.world.WorldTemplate;
 import mcd.world.DeployKey;
+import mcd.world.GitHubRepo;
+import mcd.world.Invite;
 import org.eclipse.jgit.api.TransportConfigCallback;
 
 import javax.swing.BorderFactory;
@@ -59,6 +61,7 @@ final class MainWindow extends JFrame {
     private final JButton addWorld = new JButton("월드 추가");
     private final JButton removeWorld = new JButton("목록에서 빼기");
     private final JButton upgrade = new JButton("버전 올리기");
+    private final JButton inviteButton = new JButton("친구 초대");
     private final JButton account = new JButton("설정");
     private final JTextArea logArea = new JTextArea(24, 90);
     private final JTextField command = new JTextField();
@@ -83,6 +86,7 @@ final class MainWindow extends JFrame {
         addWorld.addActionListener(e -> addWorld());
         removeWorld.addActionListener(e -> removeWorld());
         upgrade.addActionListener(e -> upgradeWorld());
+        inviteButton.addActionListener(e -> invite());
         account.addActionListener(e -> editAccount());
         JPanel worldBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         worldBar.add(new JLabel("월드"));
@@ -90,6 +94,7 @@ final class MainWindow extends JFrame {
         worldBar.add(addWorld);
         worldBar.add(removeWorld);
         worldBar.add(upgrade);
+        worldBar.add(inviteButton);
         worldBar.add(account);
 
         JPanel top = new JPanel(new BorderLayout(0, 6));
@@ -191,6 +196,7 @@ final class MainWindow extends JFrame {
         addWorld.setEnabled(enabled);
         removeWorld.setEnabled(enabled && hasWorld);
         upgrade.setEnabled(enabled && hasWorld);
+        inviteButton.setEnabled(enabled && hasWorld);
         account.setEnabled(enabled);
     }
 
@@ -269,6 +275,65 @@ final class MainWindow extends JFrame {
             }
             startNode();
         });
+    }
+
+    /**
+     * 고른 월드의 초대 코드를 보여준다. 월드에 deploy key가 없으면(토큰으로 쓰던 월드) 등록을 안내하고, 확인되면 이 PC도
+     * 그 키로 접속하도록 월드를 SSH로 바꾼 뒤 노드를 다시 켠다.
+     */
+    private void invite() {
+        Optional<World> current = settings.currentWorld();
+        if (current.isEmpty()) return;
+        World world = current.get();
+        try {
+            if (world.deployKey().isEmpty()) {
+                world = changeKey(world, "초대 코드를 만들려면 이 월드의 GitHub repo에 deploy key를 한 번 등록해야 한다.\n"
+                        + "등록하면 이 PC도 토큰 대신 그 키로 접속한다. 이 PC의 tailnet 기기는 한 번 새로 등록된다.");
+            } else {
+                String[] options = {"초대 코드 복사", "키 바꾸기(초대 끊기)", "취소"};
+                int choice = JOptionPane.showOptionDialog(this, "월드 " + world.name() + "의 초대 코드를 복사하거나, 키를 바꿔 지금까지의 초대를 끊는다.",
+                        "친구 초대", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+                if (choice == 1) {
+                    world = changeKey(world, "새 키를 만들어 등록하고 이 PC도 새 키로 바꾼다.\n"
+                            + "그 뒤 GitHub repo의 Settings → Deploy keys에서 예전 mcd 키를 지워야 지금까지의 초대 코드가 끊긴다.\n"
+                            + "계속 함께할 친구에게는 새 초대 코드를 보낸다.");
+                } else if (choice != 0) {
+                    return;
+                }
+            }
+            if (world == null) return;
+            String code = new Invite(GitHubRepo.parse(world.remote()), DeployKey.decode(world.deployKey())).encode();
+            DeployKeyDialog.copyToClipboard(code);
+            JTextArea text = new JTextArea(code, 4, 50);
+            text.setLineWrap(true);
+            text.setEditable(false);
+            JOptionPane.showMessageDialog(this, new Object[] {
+                    "초대 코드를 클립보드에 복사했다. 친구에게 보내면 '월드 추가 → 친구의 월드에 참가'에 붙여 넣는다.",
+                    new JScrollPane(text),
+                    "이 코드를 가진 사람은 누구나 이 월드를 읽고 쓸 수 있다. 공개된 곳에 올리지 않는다.\n"
+                            + "초대를 끊으려면 GitHub repo의 Settings → Deploy keys에서 mcd 키를 지우고 다시 초대한다(남은 사람도 새 코드가 필요하다)."},
+                    "친구 초대: " + world.name(), JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "초대 코드를 만들지 못했다: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 새 deploy key를 만들어 등록을 안내하고, 확인되면 이 월드가 그 키(SSH)로 접속하게 저장한 뒤 노드를 다시 켠다
+     * (이 PC가 호스트라면 저장하고 넘긴다). 취소하면 null.
+     */
+    private World changeKey(World world, String explanation) throws Exception {
+        GitHubRepo repo = GitHubRepo.parse(world.remote());
+        int answer = JOptionPane.showConfirmDialog(this, explanation + "\n노드를 다시 켠다(이 PC가 호스트라면 저장하고 넘긴다). 계속할까?",
+                "deploy key: " + repo, JOptionPane.OK_CANCEL_OPTION);
+        if (answer != JOptionPane.OK_OPTION) return null;
+        DeployKey key = DeployKey.generate();
+        if (!DeployKeyDialog.run(this, repo, key)) return null;
+        World switched = new World(repo.sshRemote(), world.dir(), key.encode());
+        if (!save(settings.withoutWorld(world.remote()).withWorld(switched))) return null;
+        refreshWorlds();
+        inControl(this::restartNode);
+        return switched;
     }
 
     private void editAccount() {

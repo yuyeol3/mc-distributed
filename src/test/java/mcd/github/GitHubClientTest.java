@@ -32,8 +32,6 @@ class GitHubClientTest {
             requests.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath() + " " + auth + " " + body);
             if (!"Bearer good".equals(auth)) {
                 respond(exchange, 401, "{\"message\":\"Bad credentials\"}");
-            } else if (exchange.getRequestURI().getPath().equals("/user/repos")) {
-                respond(exchange, 201, "{\"name\":\"world\",\"clone_url\":\"https:\\/\\/github.com\\/me\\/world.git\"}");
             } else {
                 respond(exchange, 200, "{\"login\":\"me\",\"id\":1}");
             }
@@ -50,12 +48,6 @@ class GitHubClientTest {
     void readsLoginWithBearerToken() throws Exception {
         assertEquals("me", client("good").login());
         assertEquals("GET /user Bearer good ", requests.getFirst());
-    }
-
-    @Test
-    void createsPrivateRepoAndReturnsCloneUrl() throws Exception {
-        assertEquals("https://github.com/me/world.git", client("good").createPrivateRepo("world"));
-        assertEquals("POST /user/repos Bearer good {\"name\":\"world\",\"private\":true,\"auto_init\":false}", requests.getFirst());
     }
 
     @Test

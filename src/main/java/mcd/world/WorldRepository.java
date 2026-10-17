@@ -4,6 +4,7 @@ import mcd.server.PaperBuild;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.TransportConfigCallback;
 import org.eclipse.jgit.lib.StoredConfig;
+import org.eclipse.jgit.transport.Transport;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
@@ -63,6 +64,17 @@ public final class WorldRepository {
             return git;
         }
         return Git.cloneRepository().setURI(remote).setDirectory(dir.toFile()).setTransportConfigCallback(auth).call();
+    }
+
+    /**
+     * 원격에 쓸 수 있는지 접속해 확인한다(빈 repo여도 된다). 키가 등록되지 않았거나 읽기 전용이면 예외.
+     * 실제로 push하지는 않고 push 연결만 열었다 닫는다.
+     */
+    public static void checkWriteAccess(String remote, TransportConfigCallback auth) throws Exception {
+        try (Transport transport = Transport.open(new URIish(remote))) {
+            if (auth != null) auth.configure(transport);
+            transport.openPush().close();
+        }
     }
 
     /** GitHub 토큰(https)으로 접속한다. 토큰이 비면 인증 없이(로컬 repo 등). */

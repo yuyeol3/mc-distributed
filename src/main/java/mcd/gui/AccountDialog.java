@@ -20,8 +20,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 /**
- * 모든 월드에 공통인 설정: 내 이름, GitHub 토큰, 내 서버 주소. 첫 실행이면 EULA 동의도 받는다.
- * 토큰은 GitHub에 한 번 확인한 뒤에 받아들인다.
+ * 모든 월드에 공통인 설정: 내 이름, GitHub 토큰(선택), 내 서버 주소. 첫 실행이면 EULA 동의도 받는다.
+ * 토큰을 넣으면 GitHub에 한 번 확인한 뒤에 받아들인다.
  */
 final class AccountDialog extends JDialog {
 
@@ -48,7 +48,8 @@ final class AccountDialog extends JDialog {
         row = Forms.addRow(form, row, "내 이름", name);
         row = Forms.addNote(form, row, "호스트가 누구인지 다른 사람에게 이 이름으로 보인다.");
         row = Forms.addRow(form, row, "GitHub 토큰", token);
-        row = Forms.addNote(form, row, "repo 권한이 있는 토큰. 월드를 보관할 GitHub 계정은 메인 계정과 따로 만들어 쓰기를 권한다.");
+        row = Forms.addNote(form, row, "비워 둬도 된다. 새 월드와 초대 코드는 토큰 없이 deploy key를 쓴다. "
+                + "예전 방식(repo collaborator로 초대받은 월드)에만 repo 권한이 있는 토큰이 필요하다.");
         row = Forms.addRow(form, row, "내 서버 주소", address);
         row = Forms.addNote(form, row, "tailnet 없이 같은 네트워크에서 쓸 때 다른 PC가 내 서버에 접속할 주소. tailnet을 쓰면 무시된다.");
         if (firstRun) {
@@ -101,7 +102,7 @@ final class AccountDialog extends JDialog {
         new SwingWorker<String, Void>() {
             @Override
             protected String doInBackground() throws Exception {
-                return new GitHubClient(GitHubClient.API, tokenText).login();
+                return tokenText.isEmpty() ? "" : new GitHubClient(GitHubClient.API, tokenText).login();
             }
 
             @Override

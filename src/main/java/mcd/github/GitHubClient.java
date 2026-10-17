@@ -8,7 +8,7 @@ import java.net.http.HttpResponse;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** 첫 실행 마법사에 필요한 GitHub REST API 두 가지: 토큰 확인과 private repo 만들기. */
+/** 설정에 넣은 GitHub 토큰 확인(예전 방식, collaborator로 초대받은 월드에만 쓴다). */
 public final class GitHubClient {
 
     public static final String API = "https://api.github.com";
@@ -28,14 +28,6 @@ public final class GitHubClient {
         HttpResponse<String> response = send(request("/user").GET().build());
         expect(response, 200, "토큰을 확인하지 못했다");
         return field(response.body(), "login");
-    }
-
-    /** 토큰 주인의 계정에 private repo를 만들고 clone URL(https)을 돌려준다. */
-    public String createPrivateRepo(String name) throws IOException, InterruptedException {
-        String body = "{\"name\":\"" + jsonEscape(name) + "\",\"private\":true,\"auto_init\":false}";
-        HttpResponse<String> response = send(request("/user/repos").POST(HttpRequest.BodyPublishers.ofString(body)).build());
-        expect(response, 201, "repo를 만들지 못했다");
-        return field(response.body(), "clone_url");
     }
 
     private HttpRequest.Builder request(String path) {
@@ -61,9 +53,5 @@ public final class GitHubClient {
         Matcher m = Pattern.compile("\"" + Pattern.quote(name) + "\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").matcher(json);
         if (!m.find()) throw new IOException("응답에 " + name + "이 없다");
         return m.group(1).replace("\\/", "/").replace("\\\"", "\"").replace("\\\\", "\\");
-    }
-
-    private static String jsonEscape(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }
