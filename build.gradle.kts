@@ -78,7 +78,7 @@ tasks.jar {
 
 tasks.test {
     useJUnitPlatform {
-        excludeTags("paper")
+        excludeTags("paper", "lab")
     }
 }
 

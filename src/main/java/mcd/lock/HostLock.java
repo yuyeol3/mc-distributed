@@ -40,6 +40,11 @@ public final class HostLock {
 
     private static final String MAIN = "refs/heads/main";
     private static final String REMOTE_MAIN = "refs/remotes/origin/main";
+    /**
+     * fetch/push의 연결과 읽기·쓰기가 이 시간 동안 진척이 없으면 실패로 본다. 없으면 원격이 응답 없이 끊겼을 때 TCP
+     * 재전송 시간 초과(수 분)까지 호스트 루프가 멈춘다. 큰 스냅샷을 올리는 중에도 진척이 있으면 끊기지 않는다.
+     */
+    private static final int GIT_TIMEOUT_SECONDS = 30;
 
     public enum PushOutcome {
         OK,
@@ -297,7 +302,7 @@ public final class HostLock {
     }
 
     private void fetch() throws GitAPIException {
-        git.fetch().setRemote("origin").setTransportConfigCallback(auth).call();
+        git.fetch().setRemote("origin").setTimeout(GIT_TIMEOUT_SECONDS).setTransportConfigCallback(auth).call();
     }
 
     private PushOutcome push(String targetRef) {
@@ -308,6 +313,7 @@ public final class HostLock {
             Iterable<PushResult> results = git.push()
                     .setRemote("origin")
                     .setRefSpecs(new RefSpec("HEAD:" + targetRef))
+                    .setTimeout(GIT_TIMEOUT_SECONDS)
                     .setTransportConfigCallback(auth)
                     .call();
             RemoteRefUpdate.Status status = results.iterator().next().getRemoteUpdate(targetRef).getStatus();
