@@ -30,6 +30,10 @@ class LabScenarioTest {
     private static final String BECAME_HOST = "[mcd] 이 PC가 호스트가 됐습니다";
     private static final String HEALTH_FAILED = "writer 상태 확인이 연속 실패";
     private static final String READY = "[mcd] 준비됐습니다";
+    /** 느린 네트워크 시나리오에서도 접속 직후의 청크 데이터 뒤에 밀린 인벤토리 변경을 기다릴 수 있게. */
+    private static final Duration INVENTORY_WAIT = Duration.ofMinutes(1);
+    /** build.gradle.kts의 labOldImage가 만드는 옛 버전 노드(-Plab.oldRef). */
+    private static final String OLD_NODE_IMAGE = "mcd-lab-node:old";
 
     @TempDir
     Path tmp;
@@ -39,6 +43,77 @@ class LabScenarioTest {
     void remainingPlayersFollowOneNewHostWhenHostLeaves() throws Exception {
         try (Lab lab = startLab()) {
             handoff(lab, "");
+        }
+    }
+
+    /** 모든 PC의 네트워크가 느리고 패킷이 빠져도 handoff가 되고, 살아 있는 호스트를 죽었다고 오판하지 않는다. */
+    @Test
+    void remainingPlayersFollowOneNewHostOnSlowLossyNetwork() throws Exception {
+        try (Lab lab = startLab()) {
+            // 실험실 안(노드, git, 조정 서버, DERP)으로 가는 트래픽에만 건다. 처음 기동할 때 인터넷에서 받는 Mojang jar는 시험 대상이 아니다.
+            handoff(lab, "tc qdisc add dev eth0 root handle 1: prio"
+                    + " && tc qdisc add dev eth0 parent 1:3 handle 30: netem delay 60ms 10ms loss 0.5%"
+                    + " && tc filter add dev eth0 parent 1:0 protocol ip u32 match ip dst " + lab.subnet() + " flowid 1:3");
+        }
+    }
+
+    /**
+     * PC끼리 직접 연결이 안 되는 경우(NAT 뒤). 노드 사이의 UDP를 막으면 tailnet은 실험실 DERP 서버를 거친다.
+     * 그래도 handoff가 되고 health 확인도 오판하지 않아야 한다.
+     */
+    @Test
+    void remainingPlayersFollowOneNewHostWhenOnlyDerpConnects() throws Exception {
+        try (Lab lab = startLab()) {
+            handoff(lab, "iptables -A OUTPUT -p udp -d " + lab.derperIp() + " -j ACCEPT"
+                    + " && iptables -A OUTPUT -p udp -d " + lab.subnet() + " -j DROP");
+        }
+    }
+
+    /**
+     * 친구들이 동시에 업데이트하지 않는다. 옛 버전(A, C)과 지금 버전(B)이 섞여 있어도 월드를 서로 넘길 수 있어야
+     * 한다: 옛 A가 호스트일 때 B의 플레이어가 붙고, A가 나가면 B가 이어받고, 옛 C의 플레이어가 B에 붙었다가 B가 나가면
+     * 옛 C가 이어받는다.
+     */
+    @Test
+    void worldMovesBothWaysBetweenPreviousAndCurrentRelease() throws Exception {
+        try (Lab lab = startLab();
+             McdNode a = lab.node("A", OLD_NODE_IMAGE, "");
+             McdNode b = lab.node("B");
+             McdNode c = lab.node("C", OLD_NODE_IMAGE, "")) {
+            for (McdNode n : List.of(a, b, c)) n.await(0, READY, Duration.ofMinutes(3));
+            try (Bot alice = lab.join("A", "alice", Duration.ofMinutes(3))) {
+                a.await(0, BECAME_HOST + "(epoch 1)", Duration.ofSeconds(10));
+                b.await(0, "[mcd] 지금 호스트는 A입니다", Duration.ofSeconds(30));
+                try (Bot bob = lab.join("B", "bob", Duration.ofMinutes(1))) {
+                    a.sendAndAwait("give bob minecraft:diamond 3", "Gave 3");
+                    assertEquals("diamond:3", bob.awaitInventory("diamond:3"));
+
+                    // 옛 A -> 지금 B
+                    alice.quit();
+                    a.send("stop");
+                    assertEquals("localhost:25565", bob.awaitTransfer());
+                    b.await(0, BECAME_HOST + "(epoch 2)", Duration.ofSeconds(30));
+                    assertEquals("diamond:3", bob.awaitInventory("diamond:3"));
+                    assertTrue(a.waitForExit(Duration.ofSeconds(30)));
+
+                    // 지금 B -> 옛 C
+                    c.await(0, "[mcd] 지금 호스트는 B입니다", Duration.ofSeconds(30));
+                    try (Bot carol = lab.join("C", "carol", Duration.ofMinutes(1))) {
+                        b.sendAndAwait("give carol minecraft:emerald 2", "Gave 2");
+                        assertEquals("emerald:2", carol.awaitInventory("emerald:2"));
+                        int mb = b.mark();
+                        bob.quit();
+                        b.await(mb, "bob left the game", Duration.ofSeconds(10));
+                        b.send("stop");
+                        assertEquals("localhost:25565", carol.awaitTransfer());
+                        c.await(0, BECAME_HOST + "(epoch 3)", Duration.ofSeconds(30));
+                        assertEquals("emerald:2", carol.awaitInventory("emerald:2"));
+                        stopLastHost(c, carol);
+                    }
+                }
+            }
+            lab.assertConsistentHistory("C", 3);
+            assertEquals(List.of(), lab.recoveryBranches());
         }
     }
 
@@ -216,7 +291,7 @@ class LabScenarioTest {
                 try (Bot bob = lab.join("B", "bob", Duration.ofMinutes(1));
                      Bot carol = lab.join("C", "carol", Duration.ofMinutes(1))) {
                     a.sendAndAwait("give bob minecraft:diamond 3", "Gave 3");
-                    assertEquals("diamond:3", bob.awaitInventory("diamond:3"));
+                    assertEquals("diamond:3", bob.awaitInventory("diamond:3", INVENTORY_WAIT));
 
                     alice.quit();
                     a.send("stop");
@@ -230,7 +305,7 @@ class LabScenarioTest {
                     McdNode next = bHosts ? b : c;
                     String players = next.sendAndAwait("list", "players online");
                     assertTrue(players.contains("bob") && players.contains("carol"), players);
-                    assertEquals("diamond:3", bob.awaitInventory("diamond:3"), "넘긴 월드에서 인벤토리가 이어져야 한다");
+                    assertEquals("diamond:3", bob.awaitInventory("diamond:3", INVENTORY_WAIT), "넘긴 월드에서 인벤토리가 이어져야 한다");
 
                     int m = next.mark();
                     bob.quit();

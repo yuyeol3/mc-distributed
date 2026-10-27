@@ -48,6 +48,7 @@ CraftSync(OneDrive + Essential 모드)가 "번갈아 플레이"까지는 이미 
 
 | 18. 이관 중 얼리기 | 저장을 끈 뒤 반납 push가 끝날 때까지의 플레이가 사라지던 문제(실측 블록 8개). flush 직후 이동·점프·블록/엔티티 상호작용 속성을 0으로. 26.3 정품 클라이언트로 확인(날기는 못 막음) | `HandoffScenarioTest`(변이로 실패 확인) |
 | 19. deploy key와 초대 코드 | GitHub 계정과 토큰 없이 참가. 월드 repo별 SSH deploy key(웹에서 등록), 초대 코드(`mcd1.`), 새 월드도 웹에서 만든 빈 repo에 올림, 친구 초대와 키 바꾸기. SSH로도 push CAS 유지(E9). 실제 월드로 확인: 토큰 월드를 키로 전환 → 초대 코드 → 토큰 없는 친구 노드 참가·호스트 → GUI 노드로 이관(저장과 push 7.9초, 락 획득 8.4초, 기동 9초, https보다 약 5초 김) | `DeployKeyTest`, `InviteTest`, `GitHubRepoTest`, `PushCasTest`(E9), `SettingsTest` |
+| 20. 도커 실험실 | 컨테이너마다 PC 하나로 실제 배포 구성(모두 25565, tailnet, 자체 DERP)을 만들고 handoff, 느린 네트워크, DERP만 가능, 버전 혼합, 멈춘 호스트, 네트워크 분할을 시나리오로 고정. 그 과정에서 관찰 루프 경합(호스트가 health에 답하지 않음), mcd-net 연결 종료 미전달, tailnet에서 진 쪽 중계 끊김, git timeout 없음, 종료 중 health 무응답, handoff transfer 2초 고정, status 경로 끊김을 찾아 고침(E11) | `LabScenarioTest`, `RelayTest`, `TailnetScenarioTest`, `FastFailoverTest` |
 
 ## 남은 단계 (이 순서로 진행)
 
@@ -57,7 +58,8 @@ GUI/CLI, 관리 락, 백업·복구, JAR 공유·검증과 기존 writer watchdo
 
 ## 다음에 할 것
 
-- 빠른 인수의 실제 VPN·SSH 환경 지연, 짧은 네트워크 단절, 절전·VM 정지 복귀를 추가 측정한다. 5초/3회·20초 허가·30초 대기는 초기값이다.
+- 빠른 인수의 실제 VPN·SSH 환경 지연과 절전 복귀를 측정한다. 실험실(E11)에서 멈춤, 분할, 느린 회선은 확인했다. 5초/3회·20초 허가·30초 대기는 초기값이다.
+- 실험실 시나리오를 여러 번 반복해 흔들리는지 본다. 노드 이미지에 Mojang jar를 미리 넣어 인터넷 없이 돌게 한다.
 - GUI 현대화
 - deploy key 흐름 중 실제로 아직 해 보지 않은 것: GUI 첫 실행에서 초대 코드로 참가, 웹에서 만든 빈 repo로 새 월드 만들기, 키 바꾸기, 읽기 전용으로 등록한 키를 거부하는지
 - 월드에 "필요한 최소 mcd 버전"을 기록해, 옛 버전으로 그 월드를 열면 업데이트를 안내하기

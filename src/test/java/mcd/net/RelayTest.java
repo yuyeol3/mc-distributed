@@ -94,6 +94,31 @@ class RelayTest {
         }
     }
 
+    /** tailnet에서 기동 중인 호스트는 연결을 받자마자 닫는다. 그때는 끊지 말고 중계가 직접 답해야 한다. */
+    @Test
+    void serverListPingIsAnsweredByRelayWhenHostClosesBeforeAnswering() throws Exception {
+        try (EchoServer starting = new EchoServer(1);
+             Relay relay = Relay.start(0, new Relay.Router() {
+                 @Override
+                 public InetSocketAddress route() throws IOException {
+                     throw new IOException("route를 부르면 안 된다");
+                 }
+
+                 @Override
+                 public InetSocketAddress currentHost() {
+                     return starting.address();
+                 }
+             }); Socket s = connect(relay)) {
+            OutputStream out = s.getOutputStream();
+            out.write(handshake(Protocol.INTENT_STATUS).raw());
+            Protocol.write(out, Protocol.STATUS_REQUEST, new byte[0]);
+            Protocol.Packet response = Protocol.read(s.getInputStream());
+            assertEquals(Protocol.STATUS_RESPONSE, response.id());
+            String json = Protocol.readString(new ByteArrayInputStream(response.body()));
+            assertTrue(json.contains(Relay.IDLE_MOTD), json);
+        }
+    }
+
     @Test
     void loginIsHeldWithPluginRequestsUntilHostIsReadyAndAnswersAreNotForwarded() throws Exception {
         try (EchoServer echo = new EchoServer();

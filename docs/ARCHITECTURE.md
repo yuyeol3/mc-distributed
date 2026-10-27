@@ -365,7 +365,7 @@ sequenceDiagram
 | 단위 | 중계, 설정, GitHub 클라이언트, 월드 오인 방지 | 에코 서버, 로컬 HTTP 서버 | `./gradlew test` |
 | 통합 | push CAS(로컬, GitHub), 플레이 중 스냅샷 일관성 | 실제 git, 실제 Paper | `./gradlew test`, `paperTest` |
 | E2E | P0 시나리오 5개, mcd 크래시, transfer, tailnet, 이관 | 노드는 별도 JVM 프로세스, 플레이어는 Mineflayer 봇(offline mode). 봇이 26.1까지만 지원해서 26.1.2 월드로 돈다 | `./gradlew paperTest` |
-| 실험실 | 여러 PC가 tailnet으로 이어진 실제 배포 구성(모두 25565)에서 이관 | 컨테이너 하나가 PC 하나, 도커 네트워크에 git daemon과 Headscale. 봇은 자기 노드 컨테이너의 네트워크를 같이 쓴다 | `./gradlew labTest` |
+| 실험실 | 여러 PC가 tailnet으로 이어진 실제 배포 구성(모두 25565)에서 이관, 느린 네트워크, DERP만 가능, 버전 혼합, 멈춘 호스트, 네트워크 분할 | 컨테이너 하나가 PC 하나, 도커 네트워크에 git daemon, Headscale, derper. 봇은 자기 노드 컨테이너의 네트워크를 같이 쓴다. 장애는 iptables, tc, `docker pause` | `./gradlew labTest`(E11) |
 | 호환성 | 새 Paper 빌드에서 mcd가 기대는 콘솔 동작, 이전 빌드 월드의 업그레이드 | 실제 Paper, 봇 없음 | `paperTest --tests '*PaperCompatibilityTest*' -Dmcd.paperBuild=<빌드>` |
 | 실험 | 저장 형식, 커밋 비용, 네트워크 | 기록한 세션 재생, VM(`mcd-friend`) + Headscale | `experiments/*.md` |
 

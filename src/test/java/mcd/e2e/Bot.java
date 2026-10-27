@@ -85,8 +85,14 @@ public final class Bot implements AutoCloseable {
 
     /** 아이템 지급 등은 서버 로그보다 늦게 도착할 수 있으므로, 인벤토리가 expected가 될 때까지 최대 10초 기다린다. */
     public String awaitInventory(String expected) throws IOException, TimeoutException, InterruptedException {
+        return awaitInventory(expected, Duration.ofSeconds(10));
+    }
+
+    /** 느린 네트워크에서는 접속 직후의 청크 데이터 뒤에 인벤토리 변경이 밀리므로 더 오래 기다린다. */
+    public String awaitInventory(String expected, Duration timeout) throws IOException, TimeoutException, InterruptedException {
+        long deadline = System.nanoTime() + timeout.toNanos();
         String actual = inventory();
-        for (int i = 0; i < 20 && !actual.equals(expected); i++) {
+        while (!actual.equals(expected) && System.nanoTime() < deadline) {
             Thread.sleep(500);
             actual = inventory();
         }

@@ -166,7 +166,7 @@ mcd-cli upgrade-paper --remote https://github.com/<계정>/<repo>.git --dir worl
 ./gradlew labTest          # 도커 실험실: 컨테이너마다 PC 하나, tailnet과 같은 포트로 실제 배포 구성 시나리오 (느림)
 ```
 
-`paperTest`를 돌리려면 `nodes/_cache/paper-26.1.2-74.jar`가 있어야 하고 `e2e/`에서 `npm install`을 해 둬야 한다. 테스트 봇(Mineflayer)이 26.1까지만 접속할 수 있어서 봇 E2E는 26.1.2 월드로 돈다. 다른 Paper 빌드는 봇 없이 `./gradlew paperTest --tests '*PaperCompatibilityTest*' -Dmcd.paperBuild=<빌드>`로 확인한다(mcd가 기대는 콘솔 동작, 26.1.2 월드의 업그레이드). tailnet 시나리오는 조정 서버가 있을 때만 돈다(`MCD_TEST_CONTROL_URL`, `MCD_TEST_AUTH_KEY`, 개발 중에는 Headscale을 썼다). `labTest`는 Docker와 Go가 있어야 하고 `paperTest`와 같은 Paper jar와 `e2e/node_modules`를 쓴다. 노드마다 Mojang jar를 받으므로 인터넷이 필요하다. 테스트 구성은 [docs/ARCHITECTURE.md의 테스트 전략](docs/ARCHITECTURE.md#11-테스트-전략)을 참고한다.
+`paperTest`를 돌리려면 `nodes/_cache/paper-26.1.2-74.jar`가 있어야 하고 `e2e/`에서 `npm install`을 해 둬야 한다. 테스트 봇(Mineflayer)이 26.1까지만 접속할 수 있어서 봇 E2E는 26.1.2 월드로 돈다. 다른 Paper 빌드는 봇 없이 `./gradlew paperTest --tests '*PaperCompatibilityTest*' -Dmcd.paperBuild=<빌드>`로 확인한다(mcd가 기대는 콘솔 동작, 26.1.2 월드의 업그레이드). tailnet 시나리오는 조정 서버가 있을 때만 돈다(`MCD_TEST_CONTROL_URL`, `MCD_TEST_AUTH_KEY`, 개발 중에는 Headscale을 썼다). `labTest`는 Docker와 Go가 있어야 하고 `paperTest`와 같은 Paper jar와 `e2e/node_modules`를 쓴다. 노드마다 Mojang jar를 받으므로 인터넷이 필요하다. 버전 혼합 시나리오의 옛 버전은 `-Plab.oldRef=<커밋>`으로 바꾼다(기본은 직전 릴리스). 테스트 구성은 [docs/ARCHITECTURE.md의 테스트 전략](docs/ARCHITECTURE.md#11-테스트-전략)을 참고한다.
 
 ```text
 src/main/java/mcd/

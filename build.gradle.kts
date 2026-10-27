@@ -133,10 +133,60 @@ val labBotImage by tasks.registering(Exec::class) {
     commandLine("docker", "build", "-q", "-t", "mcd-lab-bot", "-f", file("lab/bot.Dockerfile").absolutePath, file("e2e").absolutePath)
 }
 
+// 버전 혼합 시나리오의 옛 mcd. -Plab.oldRef=<커밋>으로 바꾼다. 그 커밋의 소스를 꺼내 그 커밋의 빌드로 만들고,
+// 노드 이미지는 지금의 lab/node.Dockerfile로 감싼다. 직전 릴리스 v0.6.0(76d231d)은 호스트가 된 직후 관찰 루프가 돌던
+// 월드를 커밋해 스스로 내려가는 경합이 있어(E11) 이 시나리오가 흔들린다. 그래서 그 경합만 고친 744d508을 쓴다(락 형식은
+// 같다). 다음 릴리스 뒤에는 그 릴리스로 바꾼다.
+val labOldRef = providers.gradleProperty("lab.oldRef").orElse("744d508")
+val labOldDir = layout.buildDirectory.dir("lab-old")
+
+val labOldSource by tasks.registering(Exec::class) {
+    description = "옛 mcd 소스 꺼내기(git archive)"
+    inputs.property("ref", labOldRef)
+    val src = labOldDir.map { it.dir("src").asFile }
+    outputs.dir(src)
+    doFirst { delete(src); src.get().mkdirs() }
+    workingDir = projectDir
+    // Git Bash의 tar는 C:\ 같은 경로를 원격 주소로 읽으므로 셸에는 상대 경로를 넘긴다.
+    commandLine("sh", "-c", "git archive \"$1\" | tar -x -C build/lab-old/src", "sh", labOldRef.get())
+}
+
+val labOldBuild by tasks.registering(Exec::class) {
+    description = "옛 mcd 빌드(installDist, Linux용 mcd-net)"
+    dependsOn(labOldSource)
+    val src = labOldDir.map { it.dir("src").asFile }
+    inputs.dir(src)
+    outputs.dir(src.map { it.resolve("build/install") })
+    outputs.file(src.map { it.resolve("net-helper/build/mcd-net-linux") })
+    workingDir = projectDir
+    environment("GOOS", "linux")
+    environment("GOARCH", "amd64")
+    commandLine("sh", "-c", "(cd build/lab-old/src/net-helper && go build -o build/mcd-net-linux .) && env -u GOOS -u GOARCH ./gradlew -q -p build/lab-old/src installDist")
+}
+
+val labOldImageContext by tasks.registering(Sync::class) {
+    dependsOn(labOldBuild)
+    val src = labOldDir.map { it.dir("src") }
+    into(labOldDir.map { it.dir("image") })
+    from("lab/node.Dockerfile") { rename { "Dockerfile" } }
+    from("lab/start.sh")
+    from(src.map { it.file("build/install/mcd/lib") }) { exclude("mcd.jar", "*.exe"); into("lib") }
+    // mcd.jar의 클래스만 꺼낸다. 버전(manifest)이 없어야 업데이트 확인을 건너뛴다.
+    from(src.map { zipTree(it.file("build/install/mcd/lib/mcd.jar")) }) { exclude("META-INF/MANIFEST.MF"); into("classes") }
+    from(src.map { it.file("net-helper/build/mcd-net-linux") }) { rename { "mcd-net" } }
+    from("nodes/_cache") { include("paper-26.1.2-74.jar*"); into("cache") }
+}
+
+val labOldImage by tasks.registering(Exec::class) {
+    description = "옛 버전 실험실 노드 이미지(mcd-lab-node:old)"
+    dependsOn(labOldImageContext)
+    commandLine("docker", "build", "-q", "-t", "mcd-lab-node:old", labOldDir.get().dir("image").asFile.absolutePath)
+}
+
 val labTest by tasks.registering(Test::class) {
     description = "도커 실험실 시나리오(Docker 필요)"
     group = "verification"
-    dependsOn(labImage, labGitImage, labDerperImage, labBotImage)
+    dependsOn(labImage, labGitImage, labDerperImage, labBotImage, labOldImage)
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
     useJUnitPlatform {

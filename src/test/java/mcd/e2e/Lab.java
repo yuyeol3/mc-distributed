@@ -192,6 +192,7 @@ public final class Lab implements AutoCloseable {
 
     @Override
     public void close() throws IOException, InterruptedException {
+        printHistory();
         String containers = docker("ps", "-aq", "--filter", "label=" + label());
         if (!containers.isBlank()) {
             List<String> rm = new ArrayList<>(List.of("rm", "-f"));
@@ -202,6 +203,17 @@ public final class Lab implements AutoCloseable {
             docker("network", "rm", id);
         } catch (IOException ignored) {
             // 만들기 전에 실패한 경우.
+        }
+    }
+
+    /** 실패를 진단할 수 있도록 원격의 최근 이력(누가 무엇을 올렸는지)을 남긴다. */
+    private void printHistory() {
+        try (Git git = Git.open(bare.toFile())) {
+            System.out.println("[lab] 원격 main 최근 이력:");
+            for (RevCommit c : git.log().setMaxCount(20).call()) System.out.println("[lab]   " + c.getShortMessage());
+            System.out.println("[lab] 브랜치: " + git.getRepository().getRefDatabase().getRefsByPrefix("refs/heads/").stream().map(Ref::getName).toList());
+        } catch (Exception e) {
+            System.out.println("[lab] 원격 이력을 읽지 못했다: " + e);
         }
     }
 

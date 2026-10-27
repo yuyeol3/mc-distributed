@@ -106,28 +106,27 @@ public final class Relay implements AutoCloseable {
         }
     }
 
-    /** 서버 목록 확인. 살아 있는 호스트가 있으면 넘기고, 없으면(또는 닿지 않으면) 중계가 직접 답한다. */
+    /** 서버 목록 확인. 살아 있는 호스트가 있으면 넘기고, 없으면(또는 호스트가 답하지 않으면) 중계가 직접 답한다. */
     private void status(Socket client, InputStream in, OutputStream out, Protocol.Packet handshake, Protocol.Handshake hs)
             throws IOException, InterruptedException {
+        Protocol.Packet request = Protocol.read(in);
+        if (request.id() != Protocol.STATUS_REQUEST) return;
         InetSocketAddress host = router.currentHost();
         if (host != null) {
-            Socket upstream = local(host) ? new Socket() : new Socket(remoteProxy);
+            Upstream upstream = null;
             try {
-                upstream.connect(host, 3000);
+                upstream = open(host, 3000, handshake, request);
             } catch (IOException e) {
-                upstream.close();
-                upstream = null;
+                // 호스트가 닿지 않거나 아직 기동 중이다. 아래에서 직접 답한다.
             }
             if (upstream != null) {
-                try (Socket connected = upstream) {
-                    connected.getOutputStream().write(handshake.raw());
-                    splice(client, in, connected);
+                try (Socket socket = upstream.socket()) {
+                    out.write(upstream.first());
+                    splice(client, in, socket);
                 }
                 return;
             }
         }
-        Protocol.Packet request = Protocol.read(in);
-        if (request.id() != Protocol.STATUS_REQUEST) return;
         Protocol.write(out, Protocol.STATUS_RESPONSE, Protocol.statusResponse(hs.protocolVersion(), IDLE_MOTD));
         Protocol.Packet ping = Protocol.read(in);
         if (ping.id() == Protocol.PING) {
@@ -211,28 +210,17 @@ public final class Relay implements AutoCloseable {
     }
 
     /**
-     * 목적지에 연결해 첫머리를 보내고 호스트가 답할 때까지 기다린다. 호스트가 막 바뀐 직후에는 새 호스트의 Paper가
-     * 아직 기동 중이라 연결이 거절되거나, tailnet에서는 상대 PC의 mcd-net이 연결을 받은 뒤 곧바로 닫는다(포트는 늘
-     * 열려 있다). 둘 다 다시 시도한다. 그동안 클라이언트는 {@link Hold}가 붙잡아 둔다.
+     * 로그인 목적지에 연결한다. 호스트가 막 바뀐 직후에는 새 호스트의 Paper가 아직 기동 중이라 연결이 거절되거나
+     * 곧바로 닫히므로({@link #open}) 다시 시도한다. 그동안 클라이언트는 {@link Hold}가 붙잡아 둔다.
      */
     private Upstream connect(InetSocketAddress target, Protocol.Packet handshake, Protocol.Packet loginStart)
             throws IOException, InterruptedException {
         long deadline = System.nanoTime() + CONNECT_RETRY_NANOS;
         long reroute = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (true) {
-            Socket upstream = local(target) ? new Socket() : new Socket(remoteProxy);
             try {
-                upstream.connect(target, 10_000);
-                upstream.setTcpNoDelay(true);
-                OutputStream up = upstream.getOutputStream();
-                up.write(handshake.raw());
-                up.write(loginStart.raw());
-                up.flush();
-                int first = upstream.getInputStream().read();
-                if (first < 0) throw new IOException("호스트가 답하기 전에 연결을 닫았습니다");
-                return new Upstream(upstream, first);
+                return open(target, 10_000, handshake, loginStart);
             } catch (IOException e) {
-                upstream.close();
                 if (System.nanoTime() > deadline) throw e;
                 Thread.sleep(500);
                 if (System.nanoTime() >= reroute) {
@@ -240,6 +228,27 @@ public final class Relay implements AutoCloseable {
                     reroute = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
                 }
             }
+        }
+    }
+
+    /**
+     * 목적지에 연결해 첫머리 패킷을 보내고 호스트가 처음 답할 때까지 기다린다. tailnet에서는 상대 PC의 mcd-net이
+     * 포트를 늘 열어 두므로 Paper가 아직 없어도 연결은 되고 곧바로 닫힌다. 답하기 전에 닫히면 연결 실패로 본다.
+     */
+    private Upstream open(InetSocketAddress target, int connectTimeoutMillis, Protocol.Packet... preamble) throws IOException {
+        Socket upstream = local(target) ? new Socket() : new Socket(remoteProxy);
+        try {
+            upstream.connect(target, connectTimeoutMillis);
+            upstream.setTcpNoDelay(true);
+            OutputStream up = upstream.getOutputStream();
+            for (Protocol.Packet packet : preamble) up.write(packet.raw());
+            up.flush();
+            int first = upstream.getInputStream().read();
+            if (first < 0) throw new IOException("호스트가 답하기 전에 연결을 닫았습니다");
+            return new Upstream(upstream, first);
+        } catch (IOException e) {
+            upstream.close();
+            throw e;
         }
     }
 

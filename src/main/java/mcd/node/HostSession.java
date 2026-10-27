@@ -23,6 +23,12 @@ import java.util.stream.Stream;
 final class HostSession {
 
     private static final Duration PAPER_START_TIMEOUT = Duration.ofMinutes(5);
+    /**
+     * transfer를 보낸 뒤 플레이어가 모두 떠나기를 기다리는 최대 시간(마인크래프트의 keepalive 한도). 느린 회선에서는
+     * transfer 패킷이 접속 직후의 청크 데이터 뒤에 밀려서, 고정 2초 뒤에 서버를 닫으면 그 플레이어는 옮겨 가지 못하고
+     * 끊겼다(실험실 느린 네트워크 시나리오).
+     */
+    private static final Duration TRANSFER_WAIT = Duration.ofSeconds(30);
 
     private final HostLock lock;
     private final Path dir;
@@ -77,8 +83,13 @@ final class HostSession {
         return paper != null && paper.isReady();
     }
 
+    /**
+     * 다른 노드에 "살아 있는 writer"라고 답해도 되는지. Paper가 내려간 뒤에도 마지막 월드를 올리는 동안은 소유자이므로
+     * 소유권 확인(guard)만 본다. 느린 회선에서는 이 구간이 health 판정 시간(15초)보다 길어서, Paper까지 보면 다른
+     * 노드가 정상 종료 중인 호스트를 인수해 마지막 저장을 recovery로 밀어낼 수 있었다(실험실 느린 네트워크 시나리오).
+     */
     boolean healthy() {
-        return guard != null && guard.valid() && paper != null && paper.isAlive();
+        return guard != null && guard.valid();
     }
 
     boolean isRunning() {
@@ -229,7 +240,10 @@ final class HostSession {
         }
         log.accept("월드와 락을 올렸습니다(저장과 push " + seconds(start, clock.instant()) + "). 플레이어를 보냅니다.");
         paper.command("transfer localhost " + handoffPort + " @a");
-        Thread.sleep(2000);
+        Instant deadline = clock.instant().plus(TRANSFER_WAIT);
+        while (paper.onlinePlayers() > 0 && clock.instant().isBefore(deadline)) {
+            Thread.sleep(500);
+        }
         paper.stop(Duration.ofMinutes(2));
         lock.discardLocalChanges();
         log.accept("월드를 올리고 서버를 넘겼습니다.");
