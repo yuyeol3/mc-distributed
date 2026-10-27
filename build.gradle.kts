@@ -104,6 +104,7 @@ val paperTest by tasks.registering(Test::class) {
 val labImageContext by tasks.registering(Sync::class) {
     into(layout.buildDirectory.dir("lab-image"))
     from("lab/node.Dockerfile") { rename { "Dockerfile" } }
+    from("lab/start.sh")
     from(sourceSets.main.get().output) { into("classes") }
     from(configurations.runtimeClasspath) { into("lib") }
     from(netHelperLinux) { rename { "mcd-net" } }
@@ -122,10 +123,20 @@ val labGitImage by tasks.registering(Exec::class) {
     commandLine("docker", "build", "-q", "-t", "mcd-lab-git", "-f", file("lab/git.Dockerfile").absolutePath, file("lab").absolutePath)
 }
 
+val labDerperImage by tasks.registering(Exec::class) {
+    description = "실험실 DERP 중계 서버 이미지(mcd-lab-derper)"
+    commandLine("docker", "build", "-q", "-t", "mcd-lab-derper", "-f", file("lab/derper.Dockerfile").absolutePath, file("lab").absolutePath)
+}
+
+val labBotImage by tasks.registering(Exec::class) {
+    description = "실험실 플레이어 봇 이미지(mcd-lab-bot)"
+    commandLine("docker", "build", "-q", "-t", "mcd-lab-bot", "-f", file("lab/bot.Dockerfile").absolutePath, file("e2e").absolutePath)
+}
+
 val labTest by tasks.registering(Test::class) {
     description = "도커 실험실 시나리오(Docker 필요)"
     group = "verification"
-    dependsOn(labImage, labGitImage)
+    dependsOn(labImage, labGitImage, labDerperImage, labBotImage)
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
     useJUnitPlatform {
