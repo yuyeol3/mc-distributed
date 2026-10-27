@@ -52,7 +52,11 @@ public final class PaperServer implements AutoCloseable {
 
     /** 기동을 기다리지 않고 프로세스만 띄운다. 기동 완료는 {@link #isReady}로 확인한다. */
     public static PaperServer launch(Path serverDir, Path paperJar, int port, PrintStream echo) throws IOException {
-        String agent = "-javaagent:" + ParentWatchdog.createAgentJar();
+        return launch(serverDir, paperJar, port, echo, 0);
+    }
+
+    public static PaperServer launch(Path serverDir, Path paperJar, int port, PrintStream echo, int permitPort) throws IOException {
+        String agent = "-javaagent:" + ParentWatchdog.createAgentJar() + (permitPort == 0 ? "" : "=" + permitPort);
         Process process = new ProcessBuilder(javaExecutable(), "-Xmx2G", agent, "-jar", paperJar.toAbsolutePath().toString(),
                 "--nogui", "--port", Integer.toString(port))
                 .directory(serverDir.toFile())

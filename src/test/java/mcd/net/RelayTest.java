@@ -131,6 +131,22 @@ class RelayTest {
     }
 
     @Test
+    void loginReevaluatesRouteWhenOriginalHostIsGone() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        int gone;
+        try (ServerSocket reservation = new ServerSocket(0)) { gone = reservation.getLocalPort(); }
+        try (EchoServer echo = new EchoServer();
+             Relay relay = Relay.start(0, () -> calls.getAndIncrement() == 0
+                     ? new InetSocketAddress(InetAddress.getLoopbackAddress(), gone) : echo.address(),
+                     Proxy.NO_PROXY, Duration.ofHours(1)); Socket socket = connect(relay)) {
+            byte[] preamble = loginPreamble("alice");
+            socket.getOutputStream().write(preamble);
+            assertArrayEquals(preamble, socket.getInputStream().readNBytes(preamble.length));
+            assertTrue(calls.get() >= 2);
+        }
+    }
+
+    @Test
     void loginGetsReadableDisconnectWhenThereIsNoHost() throws Exception {
         try (Relay relay = Relay.start(0, () -> { throw new IOException("no host"); }); Socket s = connect(relay)) {
             s.getOutputStream().write(loginPreamble("alice"));

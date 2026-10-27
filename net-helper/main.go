@@ -1,6 +1,7 @@
 // mcd-net: mcd가 띄우는 tailnet 보조 프로그램. tsnet으로 tailnet에 붙어서
 //   - 로컬 SOCKS5 프록시(mcd 중계가 다른 PC의 tailnet 주소로 접속할 때 씀)
 //   - 들어오는 포워딩(tailnet의 --expose 포트로 온 연결을 이 PC의 로컬 포트로 넘김)
+//
 // 을 제공한다. 준비되면 stdout에 "READY <tailnet IPv4>"를 쓴다. stdin이 닫히면(mcd가 끝나면) 끝난다.
 package main
 
@@ -57,15 +58,17 @@ func main() {
 	}()
 
 	if *expose != "" {
-		parts := strings.SplitN(*expose, "=", 2)
-		if len(parts) != 2 {
-			log.Fatalf("--expose 형식이 틀렸다: %s", *expose)
+		for _, mapping := range strings.Split(*expose, ",") {
+			parts := strings.SplitN(mapping, "=", 2)
+			if len(parts) != 2 {
+				log.Fatalf("--expose 형식이 틀렸다: %s", *expose)
+			}
+			ln, err := srv.Listen("tcp", ":"+parts[0])
+			if err != nil {
+				log.Fatalf("tailnet 포트 %s를 열지 못했다: %v", parts[0], err)
+			}
+			go forward(ln, parts[1])
 		}
-		ln, err := srv.Listen("tcp", ":"+parts[0])
-		if err != nil {
-			log.Fatalf("tailnet 포트 %s를 열지 못했다: %v", parts[0], err)
-		}
-		go forward(ln, parts[1])
 	}
 
 	fmt.Printf("READY %s %s\n", ip4, socksLn.Addr().String())

@@ -7,6 +7,8 @@ import mcd.server.PaperDistribution;
 import mcd.world.NetworkConfig;
 import mcd.world.DeployKey;
 import mcd.world.WorldRepository;
+import mcd.world.WorldAdmin;
+import mcd.world.WorldImport;
 import org.eclipse.jgit.api.TransportConfigCallback;
 
 import java.nio.file.Files;
@@ -23,6 +25,15 @@ public final class Main {
 
     private static final String USAGE = """
             사용법:
+              mcd world replace --remote <git URL> --node <이름> --source <월드 폴더 또는 ZIP>
+                  사용 중이 아닌 월드를 검증·백업한 뒤 교체합니다. 서버 설정과 플러그인은 유지합니다.
+              mcd world backups --remote <git URL>
+              mcd world restore --remote <git URL> --node <이름> --backup <ID>
+                  관리 작업 전 백업 목록을 보거나 백업 내용을 새 커밋으로 복원합니다.
+              mcd plugin list --remote <git URL>
+              mcd plugin add --remote <git URL> --node <이름> --file <JAR>
+              mcd plugin remove --remote <git URL> --node <이름> --name <플러그인 이름>
+                  JAR와 정적 설정을 모든 호스트에 공유합니다. 서버가 종료된 동안만 변경합니다.
               mcd init --remote <git URL> --dir <폴더> [--paper <버전 또는 버전-빌드>] [--offline] [--tailnet-auth-key <키> [--tailnet-control-url <주소>]]
                   빈 원격 repo에 새 월드를 만듭니다. --paper가 없으면 기본 빌드를 씁니다. --offline이면 online-mode=false(테스트용).
                   tailnet 키를 주면 모든 노드가 그 tailnet으로 서로 접속합니다(친구는 아무것도 설치하지 않음).
@@ -62,8 +73,26 @@ public final class Main {
             System.out.print(USAGE);
             System.exit(2);
         }
+        if (args[0].equals("world") || args[0].equals("plugin")) {
+            if (args.length < 2) throw new IllegalArgumentException("world/plugin의 하위 명령을 지정하세요");
+            String[] nested = new String[args.length - 1];
+            nested[0] = args[0] + "-" + args[1];
+            System.arraycopy(args, 2, nested, 1, args.length - 2);
+            args = nested;
+        }
         Map<String, String> opts = parse(args);
         switch (args[0]) {
+            case "world-replace" -> {
+                try (var prepared = WorldImport.prepare(Path.of(require(opts, "source")))) {
+                    System.out.println(prepared.summary());
+                    System.out.println("교체 완료. 변경 전 백업: " + admin(opts).replace(prepared));
+                }
+            }
+            case "world-backups" -> admin(opts).backups().forEach(System.out::println);
+            case "world-restore" -> System.out.println("복원 완료. 복원 전 백업: " + admin(opts).restore(require(opts, "backup")));
+            case "plugin-list" -> admin(opts).plugins().forEach(System.out::println);
+            case "plugin-add" -> System.out.println("플러그인 적용 완료. 변경 전 백업: " + admin(opts).addPlugin(Path.of(require(opts, "file"))));
+            case "plugin-remove" -> System.out.println("플러그인 제거 완료. 데이터 폴더는 보존했습니다. 변경 전 백업: " + admin(opts).removePlugin(require(opts, "name")));
             case "init" -> InitCommand.run(Path.of(require(opts, "dir")), require(opts, "remote"), !opts.containsKey("offline"),
                     opts.containsKey("tailnet-auth-key")
                             ? Optional.of(new NetworkConfig(opts.getOrDefault("tailnet-control-url", ""), opts.get("tailnet-auth-key")))
@@ -102,6 +131,10 @@ public final class Main {
                 System.exit(2);
             }
         }
+    }
+
+    private static WorldAdmin admin(Map<String, String> opts) throws Exception {
+        return new WorldAdmin(require(opts, "remote"), opts.getOrDefault("node", "관리"), auth(opts));
     }
 
     /** init --paper: 없으면 기본 빌드, 버전만 주면 그 버전의 최신 안정 빌드. */

@@ -5,8 +5,8 @@ plugins {
 }
 
 group = "mcd"
-// 릴리스 태그(v0.2.0)와 같게 둔다. 앱은 이 값과 GitHub의 최신 릴리스를 비교해 업데이트를 안내한다.
-version = "0.5.0"
+// 배포 시 릴리스 태그와 같게 둔다. 앱은 이 값과 GitHub의 최신 릴리스를 비교해 업데이트를 안내한다.
+version = "0.6.0"
 
 repositories {
     mavenCentral()
@@ -19,6 +19,8 @@ java {
 }
 
 dependencies {
+    // 플러그인 descriptor는 실행 없이 안전한 YAML 생성자로 읽는다.
+    implementation("org.yaml:snakeyaml:2.5")
     implementation("org.eclipse.jgit:org.eclipse.jgit:7.8.0.202609011348-r")
     // 월드 repo별 deploy key로 GitHub에 SSH 접속한다(GitHub 계정 없는 참가자).
     implementation("org.eclipse.jgit:org.eclipse.jgit.ssh.apache:7.8.0.202609011348-r")

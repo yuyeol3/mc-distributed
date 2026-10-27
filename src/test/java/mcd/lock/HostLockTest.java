@@ -48,7 +48,13 @@ class HostLockTest {
     @BeforeEach
     void setUp() throws Exception {
         bare = tmp.resolve("remote.git");
-        Git.init().setBare(true).setInitialBranch("main").setDirectory(bare.toFile()).call().close();
+        try (Git remote = Git.init().setBare(true).setInitialBranch("main").setDirectory(bare.toFile()).call()) {
+            // CAS 경쟁 직후 background GC가 pack을 열고 있으면 Windows의 임시 폴더 삭제가 실패한다.
+            var config = remote.getRepository().getConfig();
+            config.setInt("gc", null, "auto", 0);
+            config.setInt("gc", null, "autoPackLimit", 0);
+            config.save();
+        }
 
         Path seed = tmp.resolve("seed");
         try (Git git = Git.cloneRepository().setURI(bare.toUri().toString()).setDirectory(seed.toFile()).call()) {
@@ -64,6 +70,49 @@ class HostLockTest {
     @AfterEach
     void tearDown() {
         opened.forEach(Git::close);
+    }
+
+    @Test
+    void sameDisplayNameOnAnotherWorkTreeCannotStealLiveLock() throws Exception {
+        assertTrue(lock(gitA, "A").tryAcquire("a").acquired());
+
+        assertFalse(lock(gitB, "A").tryAcquire("b").acquired(),
+                "표시 이름이 같아도 다른 작업 트리는 다른 노드다");
+    }
+
+    @Test
+    void healthTakeoverRequiresExactGuardedOwnerAndRejectsOldWriterPush() throws Exception {
+        HostLock a = lock(gitA, "A");
+        HostLock b = lock(gitB, "B");
+        LockState original = a.tryAcquire("a", "a:9", null).lock();
+        assertFalse(b.tryAcquire("b", "b:9", null).acquired());
+
+        Acquisition next = b.tryAcquire("b", "b:9", original);
+
+        assertTrue(next.acquired());
+        assertEquals(original.epoch() + 1, next.lock().epoch());
+        assertEquals(PushOutcome.REJECTED, a.heartbeat());
+        assertFalse(a.tryAcquire("a", "a:9", original).acquired(), "과거 health 실패를 새 owner에 재사용하면 안 된다");
+    }
+
+    @Test
+    void maintenanceBlocksHealthTakeoverAndIsNotReclaimedBySameName() throws Exception {
+        HostLock a = lock(gitA, "A");
+        LockState state = a.tryMaintain().lock();
+        assertEquals(LockState.State.MAINTENANCE, state.state());
+        assertFalse(lock(gitB, "A").tryMaintain().acquired());
+        assertFalse(lock(gitB, "B").tryAcquire("b", "b:9", state).acquired());
+        assertEquals(PushOutcome.OK, a.release());
+        assertTrue(lock(gitB, "B").tryMaintain().acquired());
+    }
+
+    @Test
+    void regularSnapshotDoesNotPublishManuallyDroppedPluginJar() throws Exception {
+        HostLock a = lock(gitA, "A");
+        a.tryAcquire("a");
+        write(gitA, "plugins/local-only.jar", "unmanaged");
+        a.snapshot("regular snapshot");
+        assertEquals(Optional.empty(), remoteFile("main", "plugins/local-only.jar"), "JAR 설치는 검증된 관리 작업에서만 게시한다");
     }
 
     @Test

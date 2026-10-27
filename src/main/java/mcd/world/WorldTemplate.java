@@ -24,6 +24,8 @@ public final class WorldTemplate {
             /plugins/spark/
             /plugins/bStats/
             *.jar
+            !/plugins/*.jar
+            /plugins/.paper-remapped/
             /eula.txt
             /usercache.json
             /version_history.json

@@ -10,6 +10,7 @@ import mcd.update.AppVersion;
 import mcd.update.Updater;
 import mcd.world.WorldRepository;
 import mcd.world.WorldTemplate;
+import mcd.world.WorldAdmin;
 import mcd.world.DeployKey;
 import mcd.world.GitHubRepo;
 import mcd.world.Invite;
@@ -66,6 +67,7 @@ final class MainWindow extends JFrame {
     private final JButton addWorld = new JButton("+ 월드 추가");
     private final JButton removeWorld = new JButton("목록에서 빼기");
     private final JButton upgrade = new JButton("버전 올리기");
+    private final JButton manage = new JButton("월드·플러그인 관리");
     private final JButton inviteButton = new JButton("친구 초대");
     private final JButton account = new JButton("설정");
     private final JButton quit = new JButton("종료");
@@ -97,6 +99,7 @@ final class MainWindow extends JFrame {
         addWorld.addActionListener(e -> addWorld());
         removeWorld.addActionListener(e -> removeWorld());
         upgrade.addActionListener(e -> upgradeWorld());
+        manage.addActionListener(e -> manageWorld());
         inviteButton.addActionListener(e -> invite());
         inviteButton.setBackground(UIManager.getColor("Button.default.background"));
         inviteButton.setForeground(UIManager.getColor("Button.default.foreground"));
@@ -113,6 +116,7 @@ final class MainWindow extends JFrame {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         actions.add(inviteButton);
         actions.add(upgrade);
+        actions.add(manage);
         actions.add(removeWorld);
 
         logArea.setEditable(false);
@@ -216,6 +220,8 @@ final class MainWindow extends JFrame {
             case CHECKING -> statusPanel.show(Theme.GRAY, "원격 확인 중", "누가 호스트인지 확인하고 있습니다.");
             case NO_HOST -> statusPanel.show(Theme.GRAY, "호스트 없음", "접속하면 이 PC가 서버가 됩니다(10~20초).");
             case OTHER_HOST -> statusPanel.show(Theme.GREEN, "지금 호스트: " + s.host(), "접속하면 그 PC의 서버로 이어집니다.");
+            case UNHEALTHY -> statusPanel.show(Theme.ORANGE, "호스트 응답 없음: " + s.host(), "재접속하면 다른 PC에서 서버를 이어받습니다. 잠시 기다려 주세요.");
+            case MAINTENANCE -> statusPanel.show(Theme.ORANGE, "월드 관리 중: " + s.host(), "월드나 플러그인을 변경하고 있습니다. 작업이 끝난 뒤 접속하세요.");
             case STARTING -> statusPanel.show(Theme.ORANGE, "이 PC가 서버를 띄우는 중", "잠시 뒤 접속됩니다. 접속 화면에서 기다려 주세요.");
             case HOSTING -> statusPanel.show(Theme.GREEN, "이 PC가 호스트",
                     s.players() == 0 ? "접속한 사람이 없습니다. 아무도 없으면 5분 뒤 스스로 내려갑니다." : "접속 " + s.players() + "명");
@@ -280,6 +286,7 @@ final class MainWindow extends JFrame {
         addWorld.setEnabled(enabled);
         removeWorld.setEnabled(enabled && hasWorld);
         upgrade.setEnabled(enabled && hasWorld);
+        manage.setEnabled(enabled && hasWorld);
         inviteButton.setEnabled(enabled && hasWorld);
         account.setEnabled(enabled);
         // 컨트롤을 끈 동안 포커스가 다른 버튼(주로 종료)으로 넘어간다. 다시 켜면 월드 선택으로 돌려놓는다.
@@ -289,6 +296,23 @@ final class MainWindow extends JFrame {
     }
 
     // ---- 월드와 설정 (EDT) ----
+
+    private void manageWorld() {
+        Optional<World> selected = settings.currentWorld();
+        if (selected.isEmpty()) return;
+        try {
+            World world = selected.get();
+            new WorldManagementDialog(this, world.name(), new WorldAdmin(world.remote(), settings.nodeName(), auth(world)), this::log, () -> {
+                control.execute(() -> {
+                    try {
+                        Node current = node;
+                        if (current == null || !current.consoleCommand("plugins")) log("활성 목록은 이 PC가 호스트일 때 Paper 콘솔에서 확인할 수 있습니다.");
+                        else log("Paper 콘솔에 실제 활성 플러그인 목록을 요청했습니다.");
+                    } catch (Exception e) { log("플러그인 상태 확인 실패: " + e.getMessage()); }
+                });
+            }).setVisible(true);
+        } catch (Exception e) { JOptionPane.showMessageDialog(this, e.getMessage()); }
+    }
 
     private void refreshWorlds() {
         refreshing = true;

@@ -9,6 +9,7 @@ import java.net.Proxy;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 이 PC의 localhost 포트로 들어온 마인크래프트 연결을 현재 호스트로 넘긴다.
@@ -216,6 +217,7 @@ public final class Relay implements AutoCloseable {
      */
     private Socket connect(InetSocketAddress target) throws IOException, InterruptedException {
         long deadline = System.nanoTime() + CONNECT_RETRY_NANOS;
+        long reroute = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (true) {
             Socket upstream = local(target) ? new Socket() : new Socket(remoteProxy);
             try {
@@ -225,6 +227,10 @@ public final class Relay implements AutoCloseable {
                 upstream.close();
                 if (System.nanoTime() > deadline) throw e;
                 Thread.sleep(500);
+                if (System.nanoTime() >= reroute) {
+                    target = router.route();
+                    reroute = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                }
             }
         }
     }

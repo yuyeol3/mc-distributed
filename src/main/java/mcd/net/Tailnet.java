@@ -41,12 +41,18 @@ public final class Tailnet implements AutoCloseable {
      */
     public static Tailnet join(NetworkConfig config, String hostname, Path stateDir, int exposedPort, Consumer<String> log)
             throws IOException, InterruptedException, TimeoutException {
+        return join(config, hostname, stateDir, exposedPort, 0, log);
+    }
+
+    public static Tailnet join(NetworkConfig config, String hostname, Path stateDir, int exposedPort, int healthPort, Consumer<String> log)
+            throws IOException, InterruptedException, TimeoutException {
         Files.createDirectories(stateDir);
         List<String> cmd = new ArrayList<>(List.of(helperExecutable().toString(),
                 "--auth-key", config.authKey(),
                 "--hostname", hostname,
                 "--state-dir", stateDir.toAbsolutePath().toString(),
-                "--expose", exposedPort + "=127.0.0.1:" + exposedPort));
+                "--expose", exposedPort + "=127.0.0.1:" + exposedPort
+                        + (healthPort == 0 ? "" : "," + healthPort + "=127.0.0.1:" + healthPort)));
         if (!config.controlUrl().isEmpty()) {
             cmd.addAll(List.of("--control-url", config.controlUrl()));
         }

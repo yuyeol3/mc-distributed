@@ -31,16 +31,15 @@ final class PlayCommand {
                 Thread.currentThread().interrupt();
             }
         }));
-        node.start();
-        Thread.ofPlatform().daemon().name("update-check").start(() -> UpdateCommand.notifyIfNewer(PlayCommand::log));
-        // stdin 읽기는 가상 스레드의 캐리어를 붙잡으므로 플랫폼 스레드로 읽는다.
-        Thread.ofPlatform().daemon().name("console").start(() -> readConsole(node));
         try {
+            node.start();
+            Thread.ofPlatform().daemon().name("update-check").start(() -> UpdateCommand.notifyIfNewer(PlayCommand::log));
+            // stdin 읽기는 가상 스레드의 캐리어를 붙잡으므로 플랫폼 스레드로 읽는다.
+            Thread.ofPlatform().daemon().name("console").start(() -> readConsole(node));
             stopRequested.await();
             log("종료합니다.");
         } finally {
-            node.close();
-            finished.countDown();
+            try { node.close(); } finally { finished.countDown(); }
         }
     }
 

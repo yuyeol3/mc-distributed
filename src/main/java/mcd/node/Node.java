@@ -5,6 +5,9 @@ import mcd.lock.HostLock.Acquisition;
 import mcd.lock.LockState;
 import mcd.net.Relay;
 import mcd.net.Tailnet;
+import mcd.net.HealthCheck;
+import mcd.world.WorldProcessLock;
+import mcd.world.PluginManager;
 import mcd.server.PaperBuild;
 import mcd.server.PaperDistribution;
 import mcd.server.PaperServer;
@@ -78,6 +81,13 @@ public final class Node implements AutoCloseable {
     private Relay relay;
     private volatile HostSession session;
     private volatile LockState lastAnnounced;
+    private volatile LockState localLock;
+    private volatile LockState unhealthy;
+    private HealthCheck health;
+    private String healthAddress;
+    private WorldProcessLock processLock;
+    private volatile WriterGuard reservation;
+    private final java.util.concurrent.atomic.AtomicBoolean closing = new java.util.concurrent.atomic.AtomicBoolean();
 
     private Node(Git git, HostLock lock, Config config, PaperBuild build, Path jar, Optional<NetworkConfig> network,
                  InstantSource clock, Consumer<String> log, PrintStream console) {
@@ -112,9 +122,11 @@ public final class Node implements AutoCloseable {
             log.accept(config.remote() + "에서 월드를 받습니다.");
         }
         Git git = WorldRepository.openOrClone(config.dir(), config.remote(), config.auth());
+        WorldProcessLock processLock = null;
         try {
             // 엉뚱한 git repo(예: 경로가 비어 현재 폴더)에 파일을 쓰지 않도록, 월드 repo인지부터 확인한다.
             PaperBuild build = WorldTemplate.paperBuild(config.dir());
+            processLock = WorldProcessLock.acquire(config.dir());
             PaperDistribution.checkSupported(build, log);
             if (acceptEula) {
                 WorldTemplate.acceptEula(config.dir());
@@ -132,51 +144,73 @@ public final class Node implements AutoCloseable {
             InstantSource clock = InstantSource.system();
             Timing t = config.timing();
             HostLock lock = new HostLock(git, config.nodeName(), clock, t.ttl(), t.margin(), config.auth());
-            return new Node(git, lock, config, build, jar, NetworkConfig.read(config.dir()), clock, log, console);
+            Node opened = new Node(git, lock, config, build, jar, NetworkConfig.read(config.dir()), clock, log, console);
+            opened.processLock = processLock;
+            return opened;
         } catch (Exception e) {
+            if (processLock != null) {
+                try { processLock.close(); } catch (IOException cleanup) { e.addSuppressed(cleanup); }
+            }
             git.close();
             throw e;
         }
     }
 
     public void start() throws Exception {
-        Proxy remote = Proxy.NO_PROXY;
-        if (network.isPresent()) {
-            log.accept("tailnet에 붙습니다.");
-            tailnet = Tailnet.join(network.get(), tailnetName(node), tailnetState, paperPort, log);
-            address = tailnet.ip() + ":" + paperPort;
-            remote = tailnet.proxy();
-            log.accept("tailnet 주소는 " + address + "입니다.");
-        }
-        relay = Relay.start(listenPort, new Relay.Router() {
-            @Override
-            public InetSocketAddress route() throws IOException, InterruptedException {
-                return Node.this.route();
+        try {
+            Proxy remote = Proxy.NO_PROXY;
+            health = HealthCheck.start(network.isPresent() ? paperPort + 1 : 0, network.isPresent(), this::healthState);
+            if (network.isPresent()) {
+                log.accept("tailnet에 붙습니다.");
+                tailnet = Tailnet.join(network.get(), tailnetName(node), tailnetState, paperPort, health.port(), log);
+                address = tailnet.ip() + ":" + paperPort;
+                remote = tailnet.proxy();
+                log.accept("tailnet 주소는 " + address + "입니다.");
             }
+            healthAddress = address.substring(0, address.lastIndexOf(':') + 1) + health.port();
+            Proxy healthProxy = remote;
+            Thread.ofPlatform().daemon().name("node-health").start(() -> healthLoop(healthProxy));
+            relay = Relay.start(listenPort, new Relay.Router() {
+                @Override
+                public InetSocketAddress route() throws IOException, InterruptedException {
+                    return Node.this.route();
+                }
 
-            @Override
-            public InetSocketAddress currentHost() {
-                return Node.this.currentHost();
-            }
-        }, remote);
-        log.accept("준비됐습니다. 마인크래프트에서 localhost:" + relay.port() + "로 접속하면 됩니다.");
-        Thread.ofPlatform().name("node-observer").start(this::observeLoop);
+                @Override
+                public InetSocketAddress currentHost() {
+                    return Node.this.currentHost();
+                }
+            }, remote);
+            log.accept("준비됐습니다. 마인크래프트에서 localhost:" + relay.port() + "로 접속하면 됩니다.");
+            Thread.ofPlatform().name("node-observer").start(this::observeLoop);
+        } catch (Exception failure) {
+            try { close(); } catch (Exception cleanup) { failure.addSuppressed(cleanup); }
+            throw failure;
+        }
     }
 
     /** 호스트라면 저장하고 락을 반납한 뒤 끝낸다. */
     @Override
     public void close() throws IOException, InterruptedException {
+        if (!closing.compareAndSet(false, true)) return;
         closed.countDown();
         if (relay != null) relay.close();
         HostSession current = session;
         if (current != null && current.isRunning()) {
             current.requestStop();
-            current.awaitEnd(Duration.ofMinutes(3));
+            if (!current.awaitEnd(Duration.ofMinutes(3))) {
+                current.forceStop();
+                if (!current.awaitEnd(Duration.ofSeconds(5))) {
+                    throw new IOException("호스트 작업이 끝나지 않았습니다. 로컬 월드 잠금을 유지합니다.");
+                }
+            }
         }
         synchronized (this) {
             git.close();
         }
         if (tailnet != null) tailnet.close();
+        if (health != null) health.close();
+        if (processLock != null) processLock.close();
     }
 
     /** 화면에 보여줄 지금 상태. */
@@ -187,6 +221,10 @@ public final class Node implements AutoCloseable {
         NO_HOST,
         /** 다른 PC가 호스트다(host). */
         OTHER_HOST,
+        /** 원격 호스트의 상태 확인이 연속 실패했다. */
+        UNHEALTHY,
+        /** 월드/플러그인을 변경하는 동안 호스팅을 막는다. */
+        MAINTENANCE,
         /** 이 PC가 호스트가 되어 Paper가 기동 중이다. */
         STARTING,
         /** 이 PC가 호스트다. players는 마지막으로 센 접속 인원. */
@@ -202,7 +240,10 @@ public final class Node implements AutoCloseable {
         }
         LockState seen = lastAnnounced;
         if (seen == null) return new Status(Phase.CHECKING, null, 0);
-        if (seen.state() == LockState.State.HOSTING && !seen.owner().equals(node)) {
+        if (localLock != null && localLock.hosting()) return new Status(Phase.STARTING, node, 0);
+        if (seen.state() == LockState.State.MAINTENANCE) return new Status(Phase.MAINTENANCE, seen.owner(), 0);
+        if (seen.hosting()) {
+            if (seen.equals(unhealthy)) return new Status(Phase.UNHEALTHY, seen.owner(), 0);
             return new Status(Phase.OTHER_HOST, seen.owner(), 0);
         }
         return new Status(Phase.NO_HOST, null, 0);
@@ -221,21 +262,42 @@ public final class Node implements AutoCloseable {
             return awaitLocalPaper();
         }
         try {
+            PluginManager.verifyRuntime(dir);
             // tryAcquire는 가져갈 수 없으면 현재 락만 돌려주므로 peek를 먼저 하지 않는다(원격 왕복 한 번을 아낀다).
             Instant start = clock.instant();
-            Acquisition acquisition = lock.tryAcquire(address);
+            LockState failed = unhealthy;
+            Acquisition acquisition = lock.tryAcquire(address, healthAddress, failed);
+            if (acquisition.acquired()) localLock = acquisition.lock();
             announce(acquisition.lock());
             if (!acquisition.acquired()) {
+                if (acquisition.lock().state() == LockState.State.MAINTENANCE) {
+                    throw new IOException("월드 관리 작업 중입니다. 작업이 끝난 뒤 다시 접속하세요.");
+                }
                 return parse(acquisition.lock().address());
             }
-            log.accept("이 PC가 호스트가 됐습니다(epoch " + acquisition.lock().epoch() + "). 락 획득 "
-                    + HostSession.seconds(start, clock.instant()) + ". Paper를 시작합니다.");
-            preparePaperForWorld();
-            session = new HostSession(lock, dir, jar, paperPort, handoffPort, node, timing, clock, log, console);
-            session.start();
+            try (WriterGuard preparing = new WriterGuard(lock)) {
+                reservation = preparing;
+                if (failed != null && failed.hosting()) {
+                    log.accept("writer 응답이 없어 락을 인수했습니다. 기존 writer 종료를 위해 30초 기다립니다.");
+                    if (closed.await(WriterGuard.TAKEOVER_WAIT.toMillis(), TimeUnit.MILLISECONDS) || !preparing.valid()) {
+                        throw new IOException("인수 대기 중 종료되었거나 소유권을 잃었습니다");
+                    }
+                }
+                log.accept("이 PC가 호스트가 됐습니다(epoch " + acquisition.lock().epoch() + "). 락 획득 "
+                        + HostSession.seconds(start, clock.instant()) + ". Paper를 시작합니다.");
+                preparePaperForWorld();
+                session = new HostSession(lock, dir, jar, paperPort, handoffPort, node, timing, clock, log, console);
+                session.start();
+            } finally { reservation = null; }
             return awaitLocalPaper();
         } catch (org.eclipse.jgit.api.errors.GitAPIException e) {
             throw new IOException("원격 저장소를 확인하지 못했습니다", e);
+        } catch (IOException | InterruptedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("호스트를 시작하지 못했습니다", e);
+        } finally {
+            if (session == null || !session.isRunning()) localLock = null;
         }
     }
 
@@ -246,6 +308,7 @@ public final class Node implements AutoCloseable {
     private void preparePaperForWorld() throws IOException, InterruptedException {
         try {
             PaperBuild current = WorldTemplate.paperBuild(dir);
+            PluginManager.verifyRuntime(dir);
             if (current.equals(build)) return;
             PaperDistribution.checkSupported(current, log);
             log.accept("월드의 버전이 바뀌었습니다: 마인크래프트 " + current.version() + "(Paper " + current + ").");
@@ -271,7 +334,7 @@ public final class Node implements AutoCloseable {
             return current.isReady() ? new InetSocketAddress(InetAddress.getLoopbackAddress(), paperPort) : null;
         }
         LockState seen = lastAnnounced;
-        if (seen == null || seen.state() != LockState.State.HOSTING || seen.owner().equals(node)) {
+        if (seen == null || !seen.hosting() || seen.equals(localLock) || seen.equals(unhealthy)) {
             return null;
         }
         try {
@@ -294,6 +357,8 @@ public final class Node implements AutoCloseable {
                 HostSession current = session;
                 if (current == null || !current.isRunning()) {
                     synchronized (this) {
+                        localLock = null;
+                        PluginManager.verifyRuntime(dir);
                         announce(lock.peek().lock());
                     }
                 }
@@ -314,11 +379,45 @@ public final class Node implements AutoCloseable {
     private void announce(LockState current) {
         if (current.equals(lastAnnounced)) return;
         lastAnnounced = current;
-        if (current.state() == LockState.State.HOSTING && !current.owner().equals(node)) {
+        if (current.state() == LockState.State.MAINTENANCE) {
+            log.accept("월드 관리 작업 중입니다(" + current.owner() + ").");
+        } else if (current.hosting() && !current.equals(localLock)) {
             log.accept("지금 호스트는 " + current.owner() + "입니다. 접속하면 그쪽으로 이어집니다.");
         } else if (current.state() == LockState.State.FREE) {
             log.accept("지금은 호스트가 없습니다. 접속하면 이 PC가 호스트가 됩니다.");
         }
+    }
+
+    private void healthLoop(Proxy proxy) {
+        LockState checking = null;
+        int failures = 0;
+        while (closed.getCount() > 0) {
+            LockState seen = lastAnnounced;
+            if (!java.util.Objects.equals(seen, checking)) {
+                checking = seen;
+                failures = 0;
+                unhealthy = null;
+            }
+            if (seen != null && seen.state() == LockState.State.GUARDED && !seen.equals(localLock)
+                    && !seen.healthAddress().isEmpty()) {
+                if (HealthCheck.probe(seen.healthAddress(), seen, proxy, Duration.ofSeconds(2))) {
+                    failures = 0;
+                    unhealthy = null;
+                } else if (++failures >= 3) {
+                    if (unhealthy == null) log.accept("writer 상태 확인이 연속 실패했습니다. 재접속하면 인수를 시도합니다.");
+                    unhealthy = seen;
+                }
+            }
+            try { if (closed.await(5, TimeUnit.SECONDS)) return; }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+        }
+    }
+
+    private LockState healthState() {
+        HostSession current = session;
+        WriterGuard preparing = reservation;
+        return (current != null && current.isRunning() && current.healthy()
+                || preparing != null && preparing.valid()) ? localLock : null;
     }
 
     /** tailnet 이름은 DNS 이름 규칙을 따라야 해서 영문 소문자, 숫자, '-'만 남긴다. */

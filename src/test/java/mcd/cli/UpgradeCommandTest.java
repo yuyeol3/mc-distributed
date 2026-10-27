@@ -43,6 +43,17 @@ class UpgradeCommandTest {
     }
 
     @Test
+    void refusesToTouchWorkTreeOpenedByAnotherNodeProcess() throws Exception {
+        Path directory = tmp.resolve("owner");
+        try (Git ignored = mcd.world.WorldRepository.openOrClone(directory, remote, null)) { }
+        try (var held = mcd.world.WorldProcessLock.acquire(directory);
+             FakePaperApi api = new FakePaperApi().build("26.2-7", JAR)) {
+            assertThrows(java.io.IOException.class, () -> upgrade("26.2", api));
+            assertEquals(START.toString(), remoteFile(WorldTemplate.PAPER_BUILD_FILE).trim());
+        }
+    }
+
+    @Test
     void upgradesToLatestStableBuildOfAVersion() throws Exception {
         try (FakePaperApi api = new FakePaperApi().build("26.2-3", JAR).build("26.2-7", JAR)) {
             PaperBuild next = upgrade("26.2", api);

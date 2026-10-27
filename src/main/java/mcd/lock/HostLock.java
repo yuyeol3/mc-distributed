@@ -19,11 +19,13 @@ import org.eclipse.jgit.treewalk.TreeWalk;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.UUID;
 
 /**
  * 월드 repo의 main 브랜치를 락으로 쓰는 호스트 소유권 프로토콜.
@@ -63,6 +65,8 @@ public final class HostLock {
     private Instant observedSince;
     private Instant lastPushStart;
     private int mainPushes;
+    private String identity;
+    private final Set<ObjectId> published = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public HostLock(Git git, String node, InstantSource clock, Duration ttl, Duration margin, TransportConfigCallback auth) {
         this.git = git;
@@ -79,17 +83,47 @@ public final class HostLock {
      * 자기 시계로 ttl 이상 관찰했을 때만 판정하므로, 다른 PC와 시계가 달라도 영향이 없다.
      */
     public Acquisition tryAcquire(String address) throws GitAPIException, IOException {
+        return acquire(address, "", null, false);
+    }
+
+    public Acquisition tryAcquire(String address, String healthAddress, LockState unhealthy) throws GitAPIException, IOException {
+        return acquire(address, healthAddress, unhealthy, false);
+    }
+
+    public Acquisition tryMaintain() throws GitAPIException, IOException {
+        return acquire("", "", null, true);
+    }
+
+    /** 작업 트리를 건드리지 않는 별도 연결. 느린 fetch/snapshot이 감시를 막지 않는다. */
+    public boolean confirmsOwnership() throws GitAPIException {
+        String remote = git.getRepository().getConfig().getString("remote", "origin", "url");
+        return Git.lsRemoteRepository().setRemote(remote).setHeads(true).setTimeout(3)
+                .setTransportConfigCallback(auth).call().stream()
+                .filter(ref -> ref.getName().equals(MAIN)).anyMatch(ref -> published.contains(ref.getObjectId()));
+    }
+
+    public PushOutcome backup(String id) {
+        if (!id.matches("[A-Za-z0-9_-]+")) throw new IllegalArgumentException("잘못된 백업 ID");
+        return push("refs/heads/backup/" + id);
+    }
+
+    private Acquisition acquire(String address, String healthAddress, LockState unhealthy, boolean maintenance)
+            throws GitAPIException, IOException {
         fetch();
         reconcileLocalChanges();
         ObjectId remoteHead = remoteHead();
         LockState current = lockAt(remoteHead);
 
-        if (!canTake(current, remoteHead)) {
+        boolean early = unhealthy != null && unhealthy.equals(current)
+                && current.state() == LockState.State.GUARDED && !current.healthAddress().isEmpty();
+        if (maintenance ? current.state() != LockState.State.FREE : !early && !canTake(current, remoteHead)) {
             return new Acquisition(false, current);
         }
 
         git.reset().setMode(ResetType.HARD).setRef(remoteHead.name()).call();
-        LockState next = current.hostedBy(node, address);
+        LockState.State state = maintenance ? LockState.State.MAINTENANCE
+                : healthAddress.isEmpty() ? LockState.State.HOSTING : LockState.State.GUARDED;
+        LockState next = new LockState(node, current.epoch() + 1, state, address, identity(), healthAddress);
         next.write(workTree());
         git.add().addFilepattern(LockState.FILE_NAME).call();
         git.commit().setMessage("acquire " + node + " epoch " + next.epoch()).setSign(false).call();
@@ -143,14 +177,18 @@ public final class HostLock {
         Status status = git.status().call();
         Set<String> changed = new TreeSet<>(status.getModified());
         changed.addAll(status.getUntracked());
+        // JAR는 검증된 관리 작업이 명시적으로 stage한다. 평소 스냅샷에 로컬 전용 실행 파일을 섞지 않는다.
+        changed.removeIf(HostLock::pluginJar);
         if (!changed.isEmpty()) {
             AddCommand add = git.add();
             changed.forEach(add::addFilepattern);
             add.call();
         }
-        if (!status.getMissing().isEmpty()) {
+        Set<String> missing = new TreeSet<>(status.getMissing());
+        missing.removeIf(HostLock::pluginJar);
+        if (!missing.isEmpty()) {
             RmCommand rm = git.rm().setCached(true);
-            status.getMissing().forEach(rm::addFilepattern);
+            missing.forEach(rm::addFilepattern);
             rm.call();
         }
         git.commit().setMessage(message).setAllowEmpty(true).setSign(false).call();
@@ -198,7 +236,7 @@ public final class HostLock {
     }
 
     private boolean canTake(LockState current, ObjectId remoteHead) {
-        if (current.state() == LockState.State.FREE || current.owner().equals(node)) {
+        if (current.state() == LockState.State.FREE || current.hosting() && owns(current)) {
             return true;
         }
         Instant now = clock.instant();
@@ -237,7 +275,7 @@ public final class HostLock {
                 return;
             }
             LockState remoteLock = lockAt(remoteHead);
-            boolean stillOwner = remoteLock.state() == LockState.State.HOSTING && remoteLock.owner().equals(node);
+            boolean stillOwner = remoteLock.hosting() && owns(remoteLock);
             if (stillOwner && walk.isMergedInto(remote, local) && push(MAIN) == PushOutcome.OK) {
                 return;
             }
@@ -265,6 +303,8 @@ public final class HostLock {
     private PushOutcome push(String targetRef) {
         Instant start = clock.instant();
         try {
+            // 원격 ref가 보이는 순간부터 확인 스레드가 이 커밋을 소유권 증거로 쓸 수 있다.
+            if (targetRef.equals(MAIN)) published.add(git.getRepository().resolve("HEAD"));
             Iterable<PushResult> results = git.push()
                     .setRemote("origin")
                     .setRefSpecs(new RefSpec("HEAD:" + targetRef))
@@ -279,7 +319,7 @@ public final class HostLock {
                 mainPushes++;
             }
             return PushOutcome.OK;
-        } catch (GitAPIException e) {
+        } catch (GitAPIException | IOException e) {
             return PushOutcome.FAILED;
         }
     }
@@ -306,5 +346,27 @@ public final class HostLock {
 
     private Path workTree() {
         return git.getRepository().getWorkTree().toPath();
+    }
+
+    private static boolean pluginJar(String path) {
+        return path.startsWith("plugins/") && path.indexOf('/', "plugins/".length()) < 0
+                && path.toLowerCase(java.util.Locale.ROOT).endsWith(".jar");
+    }
+
+    private String identity() throws IOException {
+        if (identity == null) {
+            Path file = git.getRepository().getDirectory().toPath().resolve("mcd-node-id");
+            if (!Files.exists(file)) Files.writeString(file, UUID.randomUUID().toString());
+            identity = Files.readString(file).trim();
+        }
+        return identity;
+    }
+
+    private boolean owns(LockState state) {
+        try {
+            return state.owner().equals(node) && !state.session().isEmpty() && state.session().equals(identity());
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
     }
 }

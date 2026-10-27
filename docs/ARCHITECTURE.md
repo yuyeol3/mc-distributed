@@ -102,7 +102,7 @@ sequenceDiagram
 
 ### 3.5 lease, heartbeat, 펜싱
 
-시간 값은 모두 TTL(기본 10분)에서 계산한다(`Timing.fromTtl`). GitHub 이용 정책의 과도한 자동 활동 조항을 고려해 push 빈도를 낮게 잡았다.
+Git lease·스냅샷 주기는 TTL(기본 10분)에서 계산한다(`Timing.fromTtl`). VPN health와 writer 실행 허가는 독립된 짧은 주기를 쓴다. Git push 빈도는 유지하고 소유권 확인에는 읽기 전용 원격 ref 조회를 쓴다.
 
 | 값 | 계산 | 기본값 | 쓰임 |
 |---|---|---|---|
@@ -115,6 +115,18 @@ sequenceDiagram
 
 - **lease 만료는 자기 시계로만 판정한다.** "같은 `main` 커밋을 내가 관찰한 지 TTL이 지났다"면 만료다. 다른 PC의 시계와 비교하지 않으므로 시계가 틀어져도 영향이 없다.
 - **호스트의 자진 종료(펜싱)**: 다른 노드는 heartbeat 커밋을 push가 *시작된* 순간부터 볼 수 있다. 그래서 호스트는 `마지막으로 성공한 push의 시작 시각 + TTL - 여유분`이 지나도록 갱신하지 못하면 스스로 서버를 내린다. 그래도 남는 틈은 3.1의 git 거절이 막는다.
+
+새 호스트는 `GUARDED` 상태와 로컬 사본별 식별자·epoch·health 주소를 기록한다. VPN 요청은 5초 간격, 제한 2초이며 3회 실패하면 장애를 의심한다. 로그인 수요가 있으면 소유권을 Git에서 다시 확인하고 다음 epoch를 경쟁 push한다. 성공한 후보는 30초 대기한 뒤 Paper를 시작한다. 옛 `HOSTING` 상태에는 조기 인수를 적용하지 않는다.
+
+`WriterGuard`는 별도 연결로 5초마다 원격 ref를 확인한다. 조회 시작 시각부터 최대 20초만 실행을 허가하며, Paper 내부 `ParentWatchdog`도 loopback 허가 응답을 감시한다. 소유권 변경·허가 만료 시 종료하고 종료 훅이 5초 안에 끝나지 않으면 강제 종료한다. 긴 Git push나 월드 저장이 감시를 막지 않는다. 임의의 OS/VM 정지까지 완전한 단일 Paper 실행을 보장하지 않는다.
+
+락은 `protocol=2`를 기록하며 더 새 형식은 거부한다. 같은 표시 이름의 다른 PC는 소유자가 아니다. 같은 로컬 사본은 OS 파일 락으로 동시 실행을 막는다. 모든 참가 PC를 업데이트한 뒤 사용한다.
+
+### 3.5.1 관리 작업
+
+월드 교체·플러그인 변경은 `WorldAdmin`이 만든 별도 임시 clone에서 수행한다. `FREE`일 때만 `MAINTENANCE` 락을 획득하고, 이 상태에서는 플레이와 health 조기 인수를 막는다. 긴 작업 동안 빈 커밋으로 락을 갱신한다. 먼저 `backup/...` ref를 push한 뒤 검증된 파일을 적용하고, 변경 내용과 `FREE`를 하나의 커밋으로 게시한다. 실패한 부분 파일은 일반 Node recovery가 열지 않는 임시 사본에 남긴다. 백업 복구도 현재 이력 위의 새 커밋이다.
+
+`WorldImport`는 폴더·ZIP을 별도로 준비하고 원본 session lock·버전·경로·크기를 확인한다. 기본 월드와 차원·플레이어 데이터를 교체하며 서버 설정·초대·플러그인은 유지한다. `PluginManager`는 JAR descriptor를 안전한 YAML reader로 검사하고 SHA-256을 기록한다. 호스트 시작 전에 JAR 목록·해시·필수 의존성을 검증한다. 배포 파일 목록과 실제 Paper 활성 상태는 다르며, SQLite/외부 DB를 쓰는 임의 플러그인의 데이터 정합성은 보장 범위 밖이다.
 
 ### 3.6 크래시 후 복귀와 recovery 브랜치
 
@@ -270,11 +282,11 @@ sequenceDiagram
 | 상황 | 동작 |
 |---|---|
 | 두 노드가 동시에 호스트가 되려 함 | push CAS로 하나만 이긴다. 진 쪽은 이긴 쪽으로 중계한다 |
-| 호스트 PC가 갑자기 꺼짐 | 다른 노드가 TTL 동안 같은 `main`을 관찰하면 인수한다. 마지막 스냅샷까지의 월드로 이어진다 |
+| 호스트 PC가 갑자기 꺼짐 | health 연속 실패 후 로그인 수요가 있으면 다음 epoch를 경쟁 push하고 30초 뒤 시작한다. 옛 호스트는 TTL로 인수한다. 마지막 공유 스냅샷으로 이어진다 |
 | 꺼졌던 옛 호스트가 다시 켜짐 | push하지 못한 변경은 recovery 브랜치로만 간다. `main`은 갈라지지 않는다 |
 | mcd만 죽음 | Paper는 stdin이 닫혀도 계속 돌기 때문에, Paper JVM에 붙인 Java 에이전트(`ParentWatchdog`)가 부모(mcd)의 종료를 감지해 Paper를 정상 종료시킨다. 다시 켜면 자기 락을 다시 잡고 그 플레이 기록을 이어 올린다 |
 | Paper가 비정상 종료 | 쓰다 만 월드 파일을 믿을 수 없으므로 락만 반납한다(마지막 스냅샷까지만 공유). 남은 변경은 다음 실행 때 recovery로 간다 |
-| 호스트가 원격 저장소에 닿지 못함 | 다음 주기에 다시 시도한다. 여유분까지 갱신하지 못하면 스스로 서버를 내린다 |
+| 호스트가 원격 저장소에 닿지 못함 | 별도 원격 확인으로 실행 허가를 갱신한다. 20초간 확인하지 못하면 Paper를 내린다 |
 | 호스트가 락을 잃음(push 거절) | 즉시 서버를 내리고 반납하지 않는다 |
 | Ctrl+C | Windows에서는 Paper에도 전달된다. Paper는 저장하고 끝나며, 종료를 요청한 경우이므로 정상 반납한다 |
 | 엉뚱한 git repo를 월드로 엶 | `mcd-paper-build.txt`가 없으면 아무것도 쓰기 전에 거부한다 |
@@ -285,9 +297,11 @@ sequenceDiagram
 |---|---|---|
 | `mcd.lock` | 소유권 프로토콜 | `HostLock`(획득, heartbeat, 스냅샷, 반납, 펜싱, 복귀), `LockState` |
 | `mcd.node` | 한 PC의 노드 | `Node`(중계, 라우팅, 관찰, tailnet), `HostSession`(Paper, heartbeat, 스냅샷, 빈 서버 종료, 이관), `Timing` |
+| `mcd.node` | 짧은 writer 실행 허가 | `WriterGuard`(원격 소유권 확인, loopback 허가), `ExecutionPermit`(단조 시간 만료) |
 | `mcd.net` | 네트워크 | `Relay`(중계, 서버 목록 응답, 로그인 붙잡기), `Protocol`(첫머리 패킷), `Tailnet`(`mcd-net` 실행과 SOCKS5) |
 | `mcd.server` | Paper 제어 | `PaperServer`(프로세스, 콘솔 명령, 저장 제어), `PaperDistribution`(월드가 정한 빌드 다운로드, 해시 검증, 지원 범위), `PaperBuild`, `ParentWatchdog`(Java 에이전트) |
 | `mcd.world` | 월드 repo | `WorldRepository`(생성, clone, 쓰기 권한 확인), `WorldTemplate`(초기 파일), `NetworkConfig`, `DeployKey`, `GitHubRepo`, `Invite` |
+| `mcd.world` | 관리 작업 | `WorldAdmin`(관리 락·백업·복구), `WorldImport`, `LevelMetadata`, `PluginManager`, `SafeFiles`, `WorldProcessLock` |
 | `mcd.cli` | CLI | `Main`, `InitCommand`, `PlayCommand`, `UpgradeCommand`, `UpdateCommand` |
 | `mcd.gui` | GUI | `App`, `MainWindow`(월드 고르기·추가·빼기·버전 올리기·친구 초대), `AccountDialog`(이름, 토큰(선택), 서버 주소), `AddWorldDialog`(새 월드/참가), `DeployKeyDialog`(키 등록 안내와 확인), `StatusPanel`(상태 카드, `Node.status()`를 1초마다), `Theme`(FlatLaf, Windows 라이트/다크를 따름) |
 | `mcd.update` | 자동 업데이트 | `Updater`(릴리스 확인, 받기, 검증, 교체 스크립트), `AppVersion`, `Json`(작은 JSON 파서) |

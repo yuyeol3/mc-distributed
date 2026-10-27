@@ -38,6 +38,7 @@ final class HostSession {
     private final CountDownLatch stopRequested = new CountDownLatch(1);
     private final CountDownLatch ended = new CountDownLatch(1);
     private volatile PaperServer paper;
+    private volatile WriterGuard guard;
     /** 마지막으로 센 접속 인원(관찰 주기마다 갱신). */
     private volatile int players;
 
@@ -56,8 +57,15 @@ final class HostSession {
     }
 
     /** Paper를 띄우고 관리 스레드를 시작한다. 기동을 기다리지 않는다(기다리는 동안에도 heartbeat가 필요하므로). */
-    void start() throws IOException {
-        paper = PaperServer.launch(dir, jar, paperPort, console);
+    void start() throws Exception {
+        try {
+            guard = new WriterGuard(lock);
+            paper = PaperServer.launch(dir, jar, paperPort, console, guard.port());
+        } catch (Exception e) {
+            if (guard != null) guard.close();
+            ended.countDown();
+            throw e;
+        }
         Thread.ofPlatform().name("host-session").start(this::run);
     }
 
@@ -66,7 +74,11 @@ final class HostSession {
     }
 
     boolean isReady() {
-        return paper.isReady();
+        return paper != null && paper.isReady();
+    }
+
+    boolean healthy() {
+        return guard != null && guard.valid() && paper != null && paper.isAlive();
     }
 
     boolean isRunning() {
@@ -81,12 +93,18 @@ final class HostSession {
         stopRequested.countDown();
     }
 
-    void awaitEnd(Duration timeout) throws InterruptedException {
-        ended.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    boolean awaitEnd(Duration timeout) throws InterruptedException {
+        return ended.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    void forceStop() throws IOException {
+        if (guard != null) guard.close();
+        if (paper != null) paper.close();
     }
 
     /** 호스트인 동안 사용자 콘솔 입력을 Paper로 넘긴다. */
     void consoleCommand(String line) throws IOException {
+        if (paper == null) throw new IOException("Paper가 아직 기동 중입니다");
         paper.command(line);
     }
 
@@ -99,6 +117,7 @@ final class HostSession {
             log.accept("호스트 관리 중 오류: " + e + ". 락은 TTL이 지나면 다른 노드가 이어받습니다.");
         } finally {
             paper.close();
+            try { guard.close(); } catch (IOException ignored) { }
             ended.countDown();
         }
     }
@@ -113,6 +132,11 @@ final class HostSession {
         boolean announced = false;
 
         while (!stopped() && paper.isAlive()) {
+            if (!guard.valid()) {
+                log.accept("writer 소유권 확인이 만료되어 서버를 내립니다.");
+                paper.stop(Duration.ofSeconds(5));
+                return false;
+            }
             if (lock.shouldStop()) {
                 log.accept("락을 갱신하지 못한 채 lease가 끝나 갑니다. 다른 노드가 이어받을 수 있으니 서버를 내립니다.");
                 paper.stop(Duration.ofMinutes(2));
@@ -168,6 +192,7 @@ final class HostSession {
         }
 
         // Windows에서는 Ctrl+C가 Paper에도 전달된다. Paper는 저장하고 끝나지만 종료 코드가 0이 아니므로, 종료를 요청한 경우는 정상으로 본다.
+        if (!guard.valid()) return false;
         if (!paper.isAlive() && !stopped() && !paper.exitedCleanly()) {
             // 정상 종료(stop)를 거치지 않았으므로 쓰다 만 월드 파일이 있을 수 있다. 마지막 스냅샷까지만 공유한다.
             log.accept("Paper가 예기치 않게 종료됐습니다. 마지막 스냅샷으로 락을 반납하고, 남은 변경은 다음 실행 때 recovery 브랜치에 보관합니다.");
