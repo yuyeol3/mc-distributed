@@ -3,9 +3,11 @@ package mcd.cli;
 import mcd.e2e.Bot;
 import mcd.e2e.McdNode;
 import mcd.lock.LockState;
+import mcd.net.HealthCheck;
 import org.eclipse.jgit.api.Git;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
+import java.net.Proxy;
 import java.nio.file.*;
 import java.time.Duration;
 import java.util.Optional;
@@ -41,7 +43,11 @@ class FastFailoverTest {
                 }
                 try (Git reader = Git.cloneRepository().setURI(remote).setDirectory(tmp.resolve("reader").toFile()).call()) {
                     assertEquals("B", LockState.read(tmp.resolve("reader")).owner());
-                    assertEquals(2, LockState.read(tmp.resolve("reader")).epoch());
+                    LockState taken = LockState.read(tmp.resolve("reader"));
+                    assertEquals(2, taken.epoch());
+                    // 인수 대기(30초)가 관찰 주기(30초)보다 길어서, 그동안 돈 관찰 루프가 호스트 상태를 지우면 안 된다.
+                    assertTrue(HealthCheck.probe(taken.healthAddress(), taken, Proxy.NO_PROXY, Duration.ofSeconds(2)),
+                            "인수한 호스트도 상태 확인에 응답해야 한다");
                 }
             }
         }

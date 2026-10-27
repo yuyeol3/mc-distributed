@@ -354,9 +354,10 @@ public final class Node implements AutoCloseable {
     private void observeLoop() {
         while (closed.getCount() > 0) {
             try {
-                HostSession current = session;
-                if (current == null || !current.isRunning()) {
-                    synchronized (this) {
+                // route가 모니터를 잡고 호스트가 되는 동안 기다렸을 수 있으므로 session은 모니터 안에서 확인한다.
+                synchronized (this) {
+                    HostSession current = session;
+                    if (current == null || !current.isRunning()) {
                         localLock = null;
                         PluginManager.verifyRuntime(dir);
                         announce(lock.peek().lock());
