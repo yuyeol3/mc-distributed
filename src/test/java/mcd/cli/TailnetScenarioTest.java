@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -46,6 +47,10 @@ class TailnetScenarioTest {
             try (Bot alice = Bot.joinViaRelay("alice", 25711)) {
                 assertTrue(a.printed("[mcd] 이 PC가 호스트가 됐습니다"));
                 b.await(0, "[mcd] 지금 호스트는 A입니다", Duration.ofSeconds(30));
+                // B는 tailnet을 거쳐 A의 health 포트를 5초마다 확인하고 3번 연속 실패하면 경고한다. 그보다 오래 지켜본다.
+                Thread.sleep(Duration.ofSeconds(20));
+                assertFalse(b.printed("writer 상태 확인이 연속 실패"), "B가 tailnet으로 A의 상태를 확인할 수 있어야 한다");
+                assertFalse(a.printed("writer 상태 확인이 연속 실패"), "호스트가 자기 자신을 실패로 보면 안 된다");
                 try (Bot bob = Bot.joinViaRelay("bob", 25721)) {
                     String players = a.sendAndAwait("list", "players online");
                     assertTrue(players.contains("alice") && players.contains("bob"), "B의 중계가 tailnet으로 A에 이어줘야 한다: " + players);

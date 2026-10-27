@@ -90,7 +90,11 @@ func forward(ln net.Listener, local string) {
 				return
 			}
 			defer up.Close()
-			go io.Copy(up, c)
+			go func() {
+				io.Copy(up, c)
+				// 들어온 쪽이 끝나면 로컬에도 끝을 알린다. 그러지 않으면 나간 플레이어가 keepalive 시간 초과까지 접속 중으로 남는다.
+				up.(*net.TCPConn).CloseWrite()
+			}()
 			io.Copy(c, up)
 		}()
 	}
