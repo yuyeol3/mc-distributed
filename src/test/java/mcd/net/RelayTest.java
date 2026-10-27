@@ -146,6 +146,22 @@ class RelayTest {
         }
     }
 
+    /**
+     * tailnet에서는 상대 PC의 mcd-net이 Paper 포트를 늘 열어 두므로, Paper가 아직 기동 중이어도 연결은 되고 곧바로 끊긴다.
+     * 이것을 연결 실패로 보고 Paper가 답할 때까지 다시 시도해야 한다(진 쪽 중계가 이긴 쪽 Paper를 기다리는 handoff).
+     */
+    @Test
+    void loginRetriesWhenHostAcceptsButClosesBeforeAnswering() throws Exception {
+        try (EchoServer starting = new EchoServer(2);
+             Relay relay = Relay.start(0, starting::address, Proxy.NO_PROXY, Duration.ofHours(1));
+             Socket socket = connect(relay)) {
+            byte[] preamble = loginPreamble("alice");
+            socket.getOutputStream().write(preamble);
+            assertArrayEquals(preamble, socket.getInputStream().readNBytes(preamble.length));
+            assertEquals(3, starting.connections);
+        }
+    }
+
     @Test
     void loginGetsReadableDisconnectWhenThereIsNoHost() throws Exception {
         try (Relay relay = Relay.start(0, () -> { throw new IOException("no host"); }); Socket s = connect(relay)) {
@@ -221,11 +237,19 @@ class RelayTest {
         private volatile int connections;
 
         EchoServer() throws IOException {
+            this(0);
+        }
+
+        /** 처음 dropFirst개 연결은 받자마자 닫는다(Paper 없이 포트만 열린 mcd-net처럼). */
+        EchoServer(int dropFirst) throws IOException {
             Thread.ofPlatform().daemon().start(() -> {
                 while (!server.isClosed()) {
                     try {
                         Socket s = server.accept();
-                        connections++;
+                        if (++connections <= dropFirst) {
+                            s.close();
+                            continue;
+                        }
                         Thread.ofPlatform().daemon().start(() -> {
                             try (s; InputStream in = s.getInputStream(); OutputStream out = s.getOutputStream()) {
                                 in.transferTo(out);

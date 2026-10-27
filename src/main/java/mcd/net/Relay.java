@@ -139,25 +139,24 @@ public final class Relay implements AutoCloseable {
     private void login(Socket client, InputStream in, OutputStream out, Protocol.Packet handshake) throws IOException, InterruptedException {
         Protocol.Packet loginStart = Protocol.read(in);
         Hold hold = new Hold(out, keepalive);
-        Socket upstream;
+        Upstream upstream;
         try {
-            upstream = connect(router.route());
+            upstream = connect(router.route(), handshake, loginStart);
         } catch (IOException e) {
             hold.stop();
             Protocol.write(out, Protocol.LOGIN_DISCONNECT, Protocol.loginDisconnect("mcd: 서버에 연결하지 못했습니다. " + e.getMessage()));
             return;
         }
-        try (upstream) {
+        try (Socket socket = upstream.socket()) {
             hold.stop();
             hold.drainResponses(in);
-            upstream.setTcpNoDelay(true);
-            OutputStream up = upstream.getOutputStream();
-            up.write(handshake.raw());
-            up.write(loginStart.raw());
-            up.flush();
-            splice(client, in, upstream);
+            out.write(upstream.first());
+            splice(client, in, socket);
         }
     }
+
+    /** 첫머리를 받은 호스트가 처음 답한 연결. first는 그 첫 바이트로, 아직 클라이언트에 보내지 않았다. */
+    private record Upstream(Socket socket, int first) {}
 
     /** 양방향으로 바이트를 넘긴다. 클라이언트 쪽 스트림은 이미 첫머리를 읽은 뒤의 것이다. */
     private static void splice(Socket client, InputStream clientIn, Socket upstream) throws InterruptedException {
@@ -212,17 +211,26 @@ public final class Relay implements AutoCloseable {
     }
 
     /**
-     * 목적지에 연결한다. 호스트가 막 바뀐 직후에는 새 호스트의 Paper가 아직 기동 중이라 연결이 거절될 수 있으므로
-     * 다시 시도한다. 그동안 클라이언트는 {@link Hold}가 붙잡아 둔다.
+     * 목적지에 연결해 첫머리를 보내고 호스트가 답할 때까지 기다린다. 호스트가 막 바뀐 직후에는 새 호스트의 Paper가
+     * 아직 기동 중이라 연결이 거절되거나, tailnet에서는 상대 PC의 mcd-net이 연결을 받은 뒤 곧바로 닫는다(포트는 늘
+     * 열려 있다). 둘 다 다시 시도한다. 그동안 클라이언트는 {@link Hold}가 붙잡아 둔다.
      */
-    private Socket connect(InetSocketAddress target) throws IOException, InterruptedException {
+    private Upstream connect(InetSocketAddress target, Protocol.Packet handshake, Protocol.Packet loginStart)
+            throws IOException, InterruptedException {
         long deadline = System.nanoTime() + CONNECT_RETRY_NANOS;
         long reroute = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (true) {
             Socket upstream = local(target) ? new Socket() : new Socket(remoteProxy);
             try {
                 upstream.connect(target, 10_000);
-                return upstream;
+                upstream.setTcpNoDelay(true);
+                OutputStream up = upstream.getOutputStream();
+                up.write(handshake.raw());
+                up.write(loginStart.raw());
+                up.flush();
+                int first = upstream.getInputStream().read();
+                if (first < 0) throw new IOException("호스트가 답하기 전에 연결을 닫았습니다");
+                return new Upstream(upstream, first);
             } catch (IOException e) {
                 upstream.close();
                 if (System.nanoTime() > deadline) throw e;
