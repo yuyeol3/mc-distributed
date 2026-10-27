@@ -61,7 +61,12 @@ public final class McdNode implements AutoCloseable {
                 "--cache", "nodes/_cache",
                 "--ttl-seconds", Integer.toString(ttlSeconds),
                 "--handoff-port", Integer.toString(handoffPort));
-        return new McdNode(name, new ProcessBuilder(cmd).redirectErrorStream(true).start());
+        return start(name, cmd);
+    }
+
+    /** command는 `mcd play`를 띄우는 명령(도커 실험실에서는 docker run -i ...). */
+    public static McdNode start(String name, List<String> command) throws IOException {
+        return new McdNode(name, new ProcessBuilder(command).redirectErrorStream(true).start());
     }
 
     public int mark() {

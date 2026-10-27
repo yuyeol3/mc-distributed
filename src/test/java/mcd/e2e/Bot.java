@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -45,10 +46,12 @@ public final class Bot implements AutoCloseable {
 
     /** spawnTimeout은 서버가 막 기동하는 경우처럼 접속이 오래 걸릴 때 늘린다. */
     public static Bot join(String username, int port, Duration spawnTimeout) throws IOException, TimeoutException, InterruptedException {
-        Process p = new ProcessBuilder("node", "e2e/bot.js", "localhost", Integer.toString(port), username)
-                .redirectErrorStream(true)
-                .start();
-        Bot bot = new Bot(p);
+        return start(List.of("node", "e2e/bot.js", "localhost", Integer.toString(port), username), spawnTimeout);
+    }
+
+    /** command는 bot.js를 띄우는 명령(도커 실험실에서는 docker run -i ...). 스폰될 때까지 기다린다. */
+    public static Bot start(List<String> command, Duration spawnTimeout) throws IOException, TimeoutException, InterruptedException {
+        Bot bot = new Bot(new ProcessBuilder(command).redirectErrorStream(true).start());
         try {
             bot.await("SPAWNED", spawnTimeout);
         } catch (TimeoutException | IllegalStateException e) {
@@ -130,7 +133,7 @@ public final class Bot implements AutoCloseable {
             String line = lines.poll(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
             if (line == null) throw new TimeoutException("봇 출력에서 '" + prefix + "'를 찾지 못했다");
             if (line.startsWith(prefix)) return line;
-            if (line.startsWith("KICKED") || line.startsWith("ERROR")) throw new IllegalStateException("봇: " + line);
+            if (line.startsWith("KICKED") || line.startsWith("ERROR") || line.startsWith("ENDED")) throw new IllegalStateException("봇: " + line);
         }
     }
 }

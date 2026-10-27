@@ -49,6 +49,17 @@ val netHelper by tasks.registering(Exec::class) {
     commandLine("go", "build", "-o", "build/mcd-net.exe", ".")
 }
 
+// 도커 실험실(lab) 노드가 쓰는 Linux용 보조 프로그램.
+val netHelperLinux by tasks.registering(Exec::class) {
+    description = "mcd-net-linux 빌드"
+    workingDir = file("net-helper")
+    inputs.files(fileTree("net-helper") { exclude("build/**") })
+    outputs.file("net-helper/build/mcd-net-linux")
+    environment("GOOS", "linux")
+    environment("GOARCH", "amd64")
+    commandLine("go", "build", "-o", "build/mcd-net-linux", ".")
+}
+
 distributions {
     main {
         contents {
@@ -83,6 +94,43 @@ val paperTest by tasks.registering(Test::class) {
     providers.systemProperty("mcd.session").orNull?.let { systemProperty("mcd.session", it) }
     // Paper 호환성 테스트의 대상 빌드(-Dmcd.paperBuild=26.2-133).
     providers.systemProperty("mcd.paperBuild").orNull?.let { systemProperty("mcd.paperBuild", it) }
+    testLogging {
+        showStandardStreams = true
+    }
+}
+
+// 도커 실험실: 컨테이너 하나를 PC 하나로 보고 tailnet, 같은 포트, 네트워크 장애까지 실제 배포 구성대로 시험한다.
+// mcd.jar 대신 클래스 폴더를 넣는다. 버전이 없으면 업데이트 확인(GitHub API)을 건너뛰므로 실행마다 외부 호출이 생기지 않는다.
+val labImageContext by tasks.registering(Sync::class) {
+    into(layout.buildDirectory.dir("lab-image"))
+    from("lab/node.Dockerfile") { rename { "Dockerfile" } }
+    from(sourceSets.main.get().output) { into("classes") }
+    from(configurations.runtimeClasspath) { into("lib") }
+    from(netHelperLinux) { rename { "mcd-net" } }
+    // 봇(Mineflayer)이 접속할 수 있는 빌드. Bot.PAPER_BUILD와 같다.
+    from("nodes/_cache") { include("paper-26.1.2-74.jar*"); into("cache") }
+}
+
+val labImage by tasks.registering(Exec::class) {
+    description = "실험실 노드 이미지(mcd-lab-node)"
+    dependsOn(labImageContext)
+    commandLine("docker", "build", "-q", "-t", "mcd-lab-node", layout.buildDirectory.dir("lab-image").get().asFile.absolutePath)
+}
+
+val labGitImage by tasks.registering(Exec::class) {
+    description = "실험실 월드 원격 이미지(mcd-lab-git)"
+    commandLine("docker", "build", "-q", "-t", "mcd-lab-git", "-f", file("lab/git.Dockerfile").absolutePath, file("lab").absolutePath)
+}
+
+val labTest by tasks.registering(Test::class) {
+    description = "도커 실험실 시나리오(Docker 필요)"
+    group = "verification"
+    dependsOn(labImage, labGitImage)
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform {
+        includeTags("lab")
+    }
     testLogging {
         showStandardStreams = true
     }
