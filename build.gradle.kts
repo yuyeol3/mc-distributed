@@ -6,7 +6,7 @@ plugins {
 
 group = "mcd"
 // 배포 시 릴리스 태그와 같게 둔다. 앱은 이 값과 GitHub의 최신 릴리스를 비교해 업데이트를 안내한다.
-version = "0.6.0"
+version = "0.6.1"
 
 repositories {
     mavenCentral()
